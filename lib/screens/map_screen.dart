@@ -21,7 +21,7 @@ class _MapScreenState extends State<MapScreen> {
   LatLng? userLocation;
   LatLng? destination;
 
-  String? selectedBuildingId; // ใช้ควบคุม polygon
+  String? selectedBuildingId;
 
   late NavigationService navigationService;
 
@@ -83,13 +83,34 @@ class _MapScreenState extends State<MapScreen> {
               initialZoom: 16,
             ),
             children: [
+              /// 🗺 Base map
               TileLayer(
                 urlTemplate:
-                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                subdomains: const ['a', 'b', 'c'],
+                maxZoom: 20,
                 userAgentPackageName: 'com.example.app',
               ),
 
-              /// 🟧 Polygon (แสดงเฉพาะตอนเลือกแล้ว)
+              /// 🏷 Labels (CARTO)
+              TileLayer(
+                urlTemplate:
+                    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}.png',
+                subdomains: const ['a', 'b', 'c'],
+                maxZoom: 20,
+                userAgentPackageName: 'com.example.app',
+              ),
+
+              /// 📜 Attribution
+              RichAttributionWidget(
+                attributions: const [
+                  TextSourceAttribution(
+                    '© OpenStreetMap contributors © CARTO',
+                  ),
+                ],
+              ),
+
+              /// 🟧 Polygon (เฉพาะที่เลือก)
               if (selectedBuildingId != null)
                 PolygonLayer(
                   polygons: buildings
@@ -124,10 +145,11 @@ class _MapScreenState extends State<MapScreen> {
                   ],
                 ),
 
-              /// 🎯 Destination marker
+              /// 🎯 Destination marker + label (ไม่ชนกัน)
               if (destination != null)
                 MarkerLayer(
                   markers: [
+                    /// pin
                     Marker(
                       point: destination!,
                       width: 40,
@@ -138,10 +160,44 @@ class _MapScreenState extends State<MapScreen> {
                         size: 40,
                       ),
                     ),
+
+                    /// label (ขยับขึ้น)
+                    Marker(
+                      point: destination!,
+                      width: 150,
+                      height: 50,
+                      child: Transform.translate(
+                        offset: const Offset(0, -45),
+                        child: Container(
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.9),
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            buildings.firstWhere(
+                                (b) => b['id'] == selectedBuildingId)['name'],
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
 
-              /// 🧭 Route line
+              /// 🧭 Route
               if (userLocation != null && destination != null)
                 PolylineLayer(
                   polylines: [
@@ -190,8 +246,8 @@ class _MapScreenState extends State<MapScreen> {
                           title: Text(b['name']),
                           subtitle: Text(b['description']),
                           onTap: () {
-                            final dest = _calculateCentroid(
-                                b['polygons'].first);
+                            final dest =
+                                _calculateCentroid(b['polygons'].first);
 
                             setState(() {
                               destination = dest;
@@ -213,3 +269,4 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 }
+
