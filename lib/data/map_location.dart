@@ -5,6 +5,7 @@ final List<Map<String, dynamic>> buildings = [
     'id': 'ENG',
     'name': 'Engineering Building',
     'description': 'Faculty of Engineering building',
+    'type': 'building', // 👈 เพิ่ม type
     'polygons': [
       [
         LatLng(14.06820, 100.60320),
@@ -18,6 +19,7 @@ final List<Map<String, dynamic>> buildings = [
     'id': 'GYM6',
     'name': 'Gym 6',
     'description': 'Sports and fitness building',
+    'type': 'gym', // 👈 เพิ่ม type
     'polygons': [
       [
         LatLng(14.06732934062687, 100.60422284413761),
@@ -42,4 +44,20 @@ final List<Map<String, dynamic>> buildings = [
       ],
     ],
   },
+
+  {
+    'id': 'CANTEEN1',
+    'name': 'Main Canteen',
+    'description': 'Student food court',
+    'type': 'canteen', // 👈 เพิ่ม type
+    'polygons': [
+      [
+        LatLng(14.0679, 100.6039),
+        LatLng(14.0679, 100.6042),
+        LatLng(14.0682, 100.6042),
+        LatLng(14.0682, 100.6039),
+      ],
+    ],
+  },
 ];
+
