@@ -29,7 +29,7 @@ class _MapScreenState extends State<MapScreen> {
       ],
     },
 
-    /// 🏟️ GYM 6 (REAL footprint from your GeoJSON)
+    /// 🏟️ GYM 6
     {
       'id': 'GYM6',
       'name': 'Gym 6',
@@ -113,8 +113,6 @@ class _MapScreenState extends State<MapScreen> {
           /// 🟧 Building overlays
           PolygonLayer(
             polygons: buildings.expand((building) {
-              final isSelected = selectedBuildingId == building['id'];
-
               return (building['polygons'] as List<List<LatLng>>).map(
                 (polygon) => Polygon(
                   points: polygon,
@@ -126,12 +124,36 @@ class _MapScreenState extends State<MapScreen> {
               );
             }).toList(),
           ),
+
+          /// 📍 GYM 6 CENTER MARKER
+          MarkerLayer(
+            markers: buildings.where((b) => b['id'] == 'GYM6').expand((
+              building,
+            ) {
+              return (building['polygons'] as List<List<LatLng>>).map((
+                polygon,
+              ) {
+                final center = _polygonCentroid(polygon);
+
+                return Marker(
+                  point: center,
+                  width: 40,
+                  height: 40,
+                  child: const Icon(
+                    Icons.location_on,
+                    color: Colors.red,
+                    size: 40,
+                  ),
+                );
+              });
+            }).toList(),
+          ),
         ],
       ),
     );
   }
 
-  /// 🎯 REAL point-in-polygon (works for any shape)
+  /// 🎯 REAL point-in-polygon
   bool _pointInPolygon(LatLng point, List<LatLng> polygon) {
     int intersections = 0;
 
@@ -153,5 +175,18 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     return intersections.isOdd;
+  }
+
+  /// 📐 Polygon centroid (for marker placement)
+  LatLng _polygonCentroid(List<LatLng> polygon) {
+    double latSum = 0;
+    double lngSum = 0;
+
+    for (final p in polygon) {
+      latSum += p.latitude;
+      lngSum += p.longitude;
+    }
+
+    return LatLng(latSum / polygon.length, lngSum / polygon.length);
   }
 }
