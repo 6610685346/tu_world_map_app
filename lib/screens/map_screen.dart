@@ -35,7 +35,10 @@ class _MapScreenState extends State<MapScreen> {
       onLocationUpdate: (loc) => setState(() => userLocation = loc),
     );
 
-    navigationService.startTracking();
+    navigationService.startTracking().catchError((e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.toString())));
+    });
   }
 
   @override
@@ -242,7 +245,7 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
 
-          /// 🚦 Route mode
+          /// 🚦 Mode
           Positioned(
             bottom: 20,
             left: 20,
@@ -251,7 +254,7 @@ class _MapScreenState extends State<MapScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 _modeButton('เดิน', RouteMode.walk),
-                _modeButton('จักรยาน', RouteMode.bike),
+                _modeButton('ซอย', RouteMode.bike),
                 _modeButton('รถ', RouteMode.car),
               ],
             ),
@@ -261,3 +264,4 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 }
+

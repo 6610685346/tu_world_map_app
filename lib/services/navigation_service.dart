@@ -12,9 +12,25 @@ class NavigationService {
 
   NavigationService({required this.onLocationUpdate});
 
-  void startTracking() {
+  Future<void> startTracking() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      throw Exception('GPS not enabled');
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception('Location permission denied forever');
+    }
+
     _timer = Timer.periodic(const Duration(seconds: 1), (_) async {
-      final pos = await Geolocator.getCurrentPosition();
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.best,
+      );
       onLocationUpdate(LatLng(pos.latitude, pos.longitude));
     });
   }

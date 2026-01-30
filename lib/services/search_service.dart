@@ -5,7 +5,8 @@ class SearchService {
     if (keyword.isEmpty) return buildings;
 
     return buildings.where((b) {
-      final text = (b['name'] + b['description']).toLowerCase();
+      final text =
+          (b['name'] + b['description']).toLowerCase();
       return text.contains(keyword.toLowerCase());
     }).toList();
   }
