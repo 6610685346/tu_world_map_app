@@ -8,7 +8,6 @@ import '../services/navigation_service.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
-
   @override
   State<MapScreen> createState() => _MapScreenState();
 }
@@ -20,8 +19,10 @@ class _MapScreenState extends State<MapScreen> {
   List<Map<String, dynamic>> results = [];
   LatLng? userLocation;
   LatLng? destination;
+  List<LatLng> routePoints = [];
 
   String? selectedBuildingId;
+  RouteMode routeMode = RouteMode.walk;
 
   late NavigationService navigationService;
 
@@ -31,11 +32,7 @@ class _MapScreenState extends State<MapScreen> {
     results = buildings;
 
     navigationService = NavigationService(
-      onLocationUpdate: (loc) {
-        setState(() {
-          userLocation = loc;
-        });
-      },
+      onLocationUpdate: (loc) => setState(() => userLocation = loc),
     );
 
     navigationService.startTracking();
@@ -47,19 +44,53 @@ class _MapScreenState extends State<MapScreen> {
     super.dispose();
   }
 
-  LatLng _calculateCentroid(List<LatLng> points) {
+  LatLng _centroid(List<LatLng> pts) {
     double lat = 0, lng = 0;
-    for (final p in points) {
+    for (final p in pts) {
       lat += p.latitude;
       lng += p.longitude;
     }
-    return LatLng(lat / points.length, lng / points.length);
+    return LatLng(lat / pts.length, lng / pts.length);
   }
 
-  void _onSearchChanged(String value) {
+  void _onSearchChanged(String v) {
+    setState(() => results = SearchService.search(v));
+  }
+
+  Future<void> _selectBuilding(Map<String, dynamic> b) async {
+    final dest = _centroid(b['polygons'].first);
+
+    final route = (userLocation == null)
+        ? <LatLng>[]
+        : await navigationService.getRoute(
+            userLocation!, dest, routeMode);
+
     setState(() {
-      results = SearchService.search(value);
+      destination = dest;
+      selectedBuildingId = b['id'];
+      routePoints = route;
+      searchController.clear();
     });
+
+    mapController.move(dest, 18);
+  }
+
+  Widget _modeButton(String text, RouteMode mode) {
+    final active = routeMode == mode;
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: active ? Colors.blue : Colors.grey,
+      ),
+      onPressed: () async {
+        routeMode = mode;
+        if (userLocation != null && destination != null) {
+          routePoints = await navigationService.getRoute(
+              userLocation!, destination!, routeMode);
+          setState(() {});
+        }
+      },
+      child: Text(text),
+    );
   }
 
   @override
@@ -71,6 +102,7 @@ class _MapScreenState extends State<MapScreen> {
           setState(() {
             destination = null;
             selectedBuildingId = null;
+            routePoints = [];
           });
         },
       ),
@@ -83,52 +115,42 @@ class _MapScreenState extends State<MapScreen> {
               initialZoom: 16,
             ),
             children: [
-              /// 🗺 Base map
               TileLayer(
                 urlTemplate:
                     'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
                 subdomains: const ['a', 'b', 'c'],
-                maxZoom: 20,
                 userAgentPackageName: 'com.example.app',
               ),
-
-              /// 🏷 Labels (CARTO)
               TileLayer(
                 urlTemplate:
                     'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}.png',
                 subdomains: const ['a', 'b', 'c'],
-                maxZoom: 20,
-                userAgentPackageName: 'com.example.app',
               ),
-
-              /// 📜 Attribution
-              RichAttributionWidget(
-                attributions: const [
-                  TextSourceAttribution(
-                    '© OpenStreetMap contributors © CARTO',
-                  ),
-                ],
-              ),
-
-              /// 🟧 Polygon (เฉพาะที่เลือก)
               if (selectedBuildingId != null)
                 PolygonLayer(
                   polygons: buildings
                       .where((b) => b['id'] == selectedBuildingId)
-                      .expand((b) {
-                    return (b['polygons'] as List<List<LatLng>>).map(
-                      (p) => Polygon(
-                        points: p,
-                        isFilled: true,
-                        color: Colors.orange.withOpacity(0.45),
-                        borderColor: Colors.orange,
-                        borderStrokeWidth: 3,
-                      ),
-                    );
-                  }).toList(),
+                      .expand((b) => (b['polygons'] as List<List<LatLng>>).map(
+                            (p) => Polygon(
+                              points: p,
+                              isFilled: true,
+                              color: Colors.orange.withOpacity(0.4),
+                              borderColor: Colors.orange,
+                              borderStrokeWidth: 3,
+                            ),
+                          ))
+                      .toList(),
                 ),
-
-              /// 📍 User marker
+              if (routePoints.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: routePoints,
+                      strokeWidth: 4,
+                      color: Colors.blue,
+                    ),
+                  ],
+                ),
               if (userLocation != null)
                 MarkerLayer(
                   markers: [
@@ -136,32 +158,21 @@ class _MapScreenState extends State<MapScreen> {
                       point: userLocation!,
                       width: 40,
                       height: 40,
-                      child: const Icon(
-                        Icons.person_pin_circle,
-                        color: Colors.blue,
-                        size: 40,
-                      ),
+                      child: const Icon(Icons.person_pin_circle,
+                          color: Colors.blue, size: 40),
                     ),
                   ],
                 ),
-
-              /// 🎯 Destination marker + label (ไม่ชนกัน)
               if (destination != null)
                 MarkerLayer(
                   markers: [
-                    /// pin
                     Marker(
                       point: destination!,
                       width: 40,
                       height: 40,
-                      child: const Icon(
-                        Icons.location_pin,
-                        color: Colors.red,
-                        size: 40,
-                      ),
+                      child: const Icon(Icons.location_pin,
+                          color: Colors.red, size: 40),
                     ),
-
-                    /// label (ขยับขึ้น)
                     Marker(
                       point: destination!,
                       width: 150,
@@ -169,50 +180,28 @@ class _MapScreenState extends State<MapScreen> {
                       child: Transform.translate(
                         offset: const Offset(0, -45),
                         child: Container(
-                          alignment: Alignment.center,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.9),
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(8),
                             boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black26,
-                                blurRadius: 4,
-                              ),
+                              BoxShadow(color: Colors.black26, blurRadius: 4)
                             ],
                           ),
                           child: Text(
                             buildings.firstWhere(
                                 (b) => b['id'] == selectedBuildingId)['name'],
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
                           ),
                         ),
                       ),
                     ),
                   ],
                 ),
-
-              /// 🧭 Route
-              if (userLocation != null && destination != null)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: navigationService.buildRoute(
-                          userLocation!, destination!),
-                      strokeWidth: 4,
-                      color: Colors.blue,
-                    ),
-                  ],
-                ),
             ],
           ),
 
-          /// 🔍 Search UI
+          /// 🔍 Search
           Positioned(
             top: 40,
             left: 15,
@@ -226,41 +215,44 @@ class _MapScreenState extends State<MapScreen> {
                     controller: searchController,
                     onChanged: _onSearchChanged,
                     decoration: const InputDecoration(
-                      hintText: 'Search building...',
+                      hintText: 'Search...',
                       prefixIcon: Icon(Icons.search),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.all(12),
                     ),
                   ),
                 ),
-
                 if (searchController.text.isNotEmpty)
                   Container(
                     height: 200,
                     color: Colors.white,
                     child: ListView.builder(
                       itemCount: results.length,
-                      itemBuilder: (context, i) {
+                      itemBuilder: (_, i) {
                         final b = results[i];
                         return ListTile(
                           title: Text(b['name']),
                           subtitle: Text(b['description']),
-                          onTap: () {
-                            final dest =
-                                _calculateCentroid(b['polygons'].first);
-
-                            setState(() {
-                              destination = dest;
-                              selectedBuildingId = b['id'];
-                              searchController.clear();
-                            });
-
-                            mapController.move(dest, 18);
-                          },
+                          onTap: () => _selectBuilding(b),
                         );
                       },
                     ),
                   ),
+              ],
+            ),
+          ),
+
+          /// 🚦 Route mode
+          Positioned(
+            bottom: 20,
+            left: 20,
+            right: 20,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _modeButton('เดิน', RouteMode.walk),
+                _modeButton('จักรยาน', RouteMode.bike),
+                _modeButton('รถ', RouteMode.car),
               ],
             ),
           ),
@@ -269,4 +261,3 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 }
-

@@ -1,14 +1,12 @@
 import '../data/map_location.dart';
 
 class SearchService {
-  static List<Map<String, dynamic>> search(String query) {
-    if (query.isEmpty) return buildings;
+  static List<Map<String, dynamic>> search(String keyword) {
+    if (keyword.isEmpty) return buildings;
 
     return buildings.where((b) {
-      return b['name']
-          .toString()
-          .toLowerCase()
-          .contains(query.toLowerCase());
+      final text = (b['name'] + b['description']).toLowerCase();
+      return text.contains(keyword.toLowerCase());
     }).toList();
   }
 }
