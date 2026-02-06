@@ -11,10 +11,15 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final MapController mapController = MapController();
-
   String? selectedBuildingId;
 
-  /// 🔷 Buildings (supports MULTIPLE polygons)
+  /// 🔒 University campus bounds
+  final LatLngBounds campusBounds = LatLngBounds(
+    LatLng(14.0645, 100.5995), // Southwest
+    LatLng(14.0725, 100.6090), // Northeast
+  );
+
+  /// 🏢 Buildings (supports MULTIPLE polygons)
   final List<Map<String, dynamic>> buildings = [
     {
       'id': 'ENG',
@@ -28,8 +33,6 @@ class _MapScreenState extends State<MapScreen> {
         ],
       ],
     },
-
-    /// 🏟️ GYM 6
     {
       'id': 'GYM6',
       'name': 'Gym 6',
@@ -66,10 +69,15 @@ class _MapScreenState extends State<MapScreen> {
       body: FlutterMap(
         mapController: mapController,
         options: MapOptions(
-          initialCenter: LatLng(14.0683, 100.6034),
+          initialCenter: const LatLng(14.0683, 100.6034),
           initialZoom: 16,
+          minZoom: 15,
+          maxZoom: 19,
 
-          /// 👆 TAP detection
+          /// 🔒 Restrict camera to campus
+          cameraConstraint: CameraConstraint.contain(bounds: campusBounds),
+
+          /// 👆 Tap detection
           onTap: (tapPosition, point) {
             for (final building in buildings) {
               for (final polygon in building['polygons']) {
@@ -105,12 +113,14 @@ class _MapScreenState extends State<MapScreen> {
           },
         ),
         children: [
+          /// 🗺️ MapTiler base map
           TileLayer(
-            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            urlTemplate:
+                'https://api.maptiler.com/maps/openstreetmap/256/{z}/{x}/{y}.jpg?key=pKEb1AjUUNqlSI9aLaO5',
             userAgentPackageName: 'com.example.tu_world_map_app',
           ),
 
-          /// 🟧 Building overlays
+          /// 🟧 Building polygons
           PolygonLayer(
             polygons: buildings.expand((building) {
               return (building['polygons'] as List<List<LatLng>>).map(
@@ -125,7 +135,7 @@ class _MapScreenState extends State<MapScreen> {
             }).toList(),
           ),
 
-          /// 📍 GYM 6 CENTER MARKER
+          /// 📍 GYM 6 center marker
           MarkerLayer(
             markers: buildings.where((b) => b['id'] == 'GYM6').expand((
               building,
@@ -134,7 +144,6 @@ class _MapScreenState extends State<MapScreen> {
                 polygon,
               ) {
                 final center = _polygonCentroid(polygon);
-
                 return Marker(
                   point: center,
                   width: 40,
@@ -148,12 +157,20 @@ class _MapScreenState extends State<MapScreen> {
               });
             }).toList(),
           ),
+
+          /// ✅ Required attribution (correct placement)
+          RichAttributionWidget(
+            alignment: AttributionAlignment.bottomRight,
+            attributions: const [
+              TextSourceAttribution('© MapTiler © OpenStreetMap contributors'),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  /// 🎯 REAL point-in-polygon
+  /// 🎯 Point-in-polygon detection
   bool _pointInPolygon(LatLng point, List<LatLng> polygon) {
     int intersections = 0;
 
@@ -173,11 +190,10 @@ class _MapScreenState extends State<MapScreen> {
         }
       }
     }
-
     return intersections.isOdd;
   }
 
-  /// 📐 Polygon centroid (for marker placement)
+  /// 📐 Polygon centroid
   LatLng _polygonCentroid(List<LatLng> polygon) {
     double latSum = 0;
     double lngSum = 0;
@@ -186,7 +202,6 @@ class _MapScreenState extends State<MapScreen> {
       latSum += p.latitude;
       lngSum += p.longitude;
     }
-
     return LatLng(latSum / polygon.length, lngSum / polygon.length);
   }
 }
