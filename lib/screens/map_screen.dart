@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../models/building.dart';
+import '../services/building_service.dart';
+import '../services/map_selection_service.dart';
+import '../models/building.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -12,6 +16,45 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   final MapController mapController = MapController();
   String? selectedBuildingId;
+  final BuildingService buildingService = BuildingService();
+  List<Building> buildings = [];
+  bool isLoading = true;
+  final MapSelectionService selectionService = MapSelectionService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBuildings();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkSelectionLoop();
+    });
+  }
+
+  void _checkSelectionLoop() {
+    final selected = selectionService.selectedBuilding;
+
+    if (selected != null && buildings.isNotEmpty) {
+      mapController.fitBounds(
+        LatLngBounds.fromPoints(selected.polygons.first),
+        options: const FitBoundsOptions(padding: EdgeInsets.all(40)),
+      );
+
+      selectionService.clear();
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkSelectionLoop();
+    });
+  }
+
+  Future<void> _loadBuildings() async {
+    final data = await buildingService.getBuildings();
+    setState(() {
+      buildings = data;
+      isLoading = false;
+    });
+  }
 
   /// 🔒 University campus bounds
   final LatLngBounds campusBounds = LatLngBounds(
@@ -19,154 +62,117 @@ class _MapScreenState extends State<MapScreen> {
     LatLng(14.0725, 100.6090), // Northeast
   );
 
-  /// 🏢 Buildings (supports MULTIPLE polygons)
-  final List<Map<String, dynamic>> buildings = [
-    {
-      'id': 'ENG',
-      'name': 'Engineering Building',
-      'polygons': [
-        [
-          LatLng(14.06820, 100.60320),
-          LatLng(14.06820, 100.60360),
-          LatLng(14.06850, 100.60360),
-          LatLng(14.06850, 100.60320),
-        ],
-      ],
-    },
-    {
-      'id': 'GYM6',
-      'name': 'Gym 6',
-      'polygons': [
-        [
-          LatLng(14.06732934062687, 100.60422284413761),
-          LatLng(14.06726860316219, 100.6042196330992),
-          LatLng(14.067106636511511, 100.60401733771084),
-          LatLng(14.067041226869136, 100.60401412667414),
-          LatLng(14.06677958811592, 100.60430633112355),
-          LatLng(14.066737539002276, 100.60441550641275),
-          LatLng(14.066729752128452, 100.60457284727158),
-          LatLng(14.066762456996102, 100.60467560048409),
-          LatLng(14.066726637379361, 100.60467560048409),
-          LatLng(14.066723522629374, 100.60482009719135),
-          LatLng(14.066876145309465, 100.60481206959639),
-          LatLng(14.067031882633543, 100.6049517497454),
-          LatLng(14.067087948043692, 100.6049517497454),
-          LatLng(14.067316881661228, 100.60473982124199),
-          LatLng(14.067369832261079, 100.60460014109299),
-          LatLng(14.067374504372012, 100.60447009405726),
-          LatLng(14.067354258556236, 100.60438339603292),
-          LatLng(14.067332455368643, 100.60433201942675),
-          LatLng(14.06732934062687, 100.60422284413761),
-        ],
-      ],
-    },
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Campus Map')),
-      body: FlutterMap(
-        mapController: mapController,
-        options: MapOptions(
-          initialCenter: const LatLng(14.0683, 100.6034),
-          initialZoom: 16,
-          minZoom: 15,
-          maxZoom: 19,
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : FlutterMap(
+              mapController: mapController,
+              options: MapOptions(
+                initialCenter: const LatLng(14.0683, 100.6034),
+                initialZoom: 16,
+                minZoom: 15,
+                maxZoom: 19,
 
-          /// 🔒 Restrict camera to campus
-          cameraConstraint: CameraConstraint.contain(bounds: campusBounds),
-
-          /// 👆 Tap detection
-          onTap: (tapPosition, point) {
-            for (final building in buildings) {
-              for (final polygon in building['polygons']) {
-                if (_pointInPolygon(point, polygon)) {
-                  setState(() {
-                    selectedBuildingId = building['id'];
-                  });
-
-                  mapController.fitBounds(
-                    LatLngBounds.fromPoints(polygon),
-                    options: const FitBoundsOptions(
-                      padding: EdgeInsets.all(40),
-                    ),
-                  );
-
-                  showDialog(
-                    context: context,
-                    builder: (_) => AlertDialog(
-                      title: Text(building['name']),
-                      content: const Text('Selected building'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('OK'),
-                        ),
-                      ],
-                    ),
-                  );
-                  return;
-                }
-              }
-            }
-          },
-        ),
-        children: [
-          /// 🗺️ MapTiler base map
-          TileLayer(
-            urlTemplate:
-                'https://api.maptiler.com/maps/openstreetmap/256/{z}/{x}/{y}.jpg?key=pKEb1AjUUNqlSI9aLaO5',
-            userAgentPackageName: 'com.example.tu_world_map_app',
-          ),
-
-          /// 🟧 Building polygons
-          PolygonLayer(
-            polygons: buildings.expand((building) {
-              return (building['polygons'] as List<List<LatLng>>).map(
-                (polygon) => Polygon(
-                  points: polygon,
-                  isFilled: true,
-                  color: Colors.orange.withOpacity(0.35),
-                  borderColor: Colors.orange,
-                  borderStrokeWidth: 2,
+                /// 🔒 Restrict camera to campus
+                cameraConstraint: CameraConstraint.contain(
+                  bounds: campusBounds,
                 ),
-              );
-            }).toList(),
-          ),
 
-          /// 📍 GYM 6 center marker
-          MarkerLayer(
-            markers: buildings.where((b) => b['id'] == 'GYM6').expand((
-              building,
-            ) {
-              return (building['polygons'] as List<List<LatLng>>).map((
-                polygon,
-              ) {
-                final center = _polygonCentroid(polygon);
-                return Marker(
-                  point: center,
-                  width: 40,
-                  height: 40,
-                  child: const Icon(
-                    Icons.location_on,
-                    color: Colors.red,
-                    size: 40,
-                  ),
-                );
-              });
-            }).toList(),
-          ),
+                /// 👆 Tap detection
+                onTap: (tapPosition, point) {
+                  for (final building in buildings) {
+                    for (final polygon in building.polygons) {
+                      if (_pointInPolygon(point, polygon)) {
+                        setState(() {
+                          selectedBuildingId = building.id;
+                        });
 
-          /// ✅ Required attribution (correct placement)
-          RichAttributionWidget(
-            alignment: AttributionAlignment.bottomRight,
-            attributions: const [
-              TextSourceAttribution('© MapTiler © OpenStreetMap contributors'),
-            ],
-          ),
-        ],
-      ),
+                        mapController.fitBounds(
+                          LatLngBounds.fromPoints(polygon),
+                          options: const FitBoundsOptions(
+                            padding: EdgeInsets.all(40),
+                          ),
+                        );
+
+                        showDialog(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: Text(building.name),
+                            content: const Text('Selected building'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('OK'),
+                              ),
+                            ],
+                          ),
+                        );
+                        return;
+                      }
+                    }
+                  }
+                },
+              ),
+              children: [
+                /// 🗺️ MapTiler base map
+                TileLayer(
+                  urlTemplate:
+                      'https://api.maptiler.com/maps/openstreetmap/256/{z}/{x}/{y}.jpg?key=pKEb1AjUUNqlSI9aLaO5',
+                  userAgentPackageName: 'com.example.tu_world_map_app',
+                ),
+
+                /// 🟧 Building polygons
+                PolygonLayer(
+                  polygons: buildings.expand((building) {
+                    return (building.polygons as List<List<LatLng>>).map(
+                      (polygon) => Polygon(
+                        points: polygon,
+                        isFilled: true,
+                        color: Colors.orange.withOpacity(0.35),
+                        borderColor: Colors.orange,
+                        borderStrokeWidth: 2,
+                      ),
+                    );
+                  }).toList(),
+                ),
+
+                /// 📍 GYM 6 center marker
+                MarkerLayer(
+                  markers: buildings.where((b) => b.id == 'GYM6').expand((
+                    building,
+                  ) {
+                    return (building.polygons as List<List<LatLng>>).map((
+                      polygon,
+                    ) {
+                      final center = _polygonCentroid(polygon);
+                      return Marker(
+                        point: center,
+                        width: 40,
+                        height: 40,
+                        child: const Icon(
+                          Icons.location_on,
+                          color: Colors.red,
+                          size: 40,
+                        ),
+                      );
+                    });
+                  }).toList(),
+                ),
+
+                /// ✅ Required attribution (correct placement)
+                RichAttributionWidget(
+                  alignment: AttributionAlignment.bottomRight,
+                  attributions: const [
+                    TextSourceAttribution(
+                      '© MapTiler © OpenStreetMap contributors',
+                    ),
+                  ],
+                ),
+              ],
+            ),
     );
   }
 

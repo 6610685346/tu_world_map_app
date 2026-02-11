@@ -4,6 +4,7 @@ import 'screens/home_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/favorite_screen.dart';
 import 'screens/map_screen.dart';
+import 'screens/main_navigation_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -21,13 +22,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
       ),
       initialRoute: '/',
-      routes: {
-        '/': (context) => const OnboardingScreen(),
-        '/home': (context) => const HomeScreen(),
-        '/search': (context) => const SearchScreen(),
-        '/favorite': (context) => const FavoriteScreen(),
-        '/map': (context) => const MapScreen(),
-      },
+      home: const OnboardingScreen(),
     );
   }
 }

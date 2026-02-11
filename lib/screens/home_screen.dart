@@ -1,46 +1,125 @@
 import 'package:flutter/material.dart';
+import '../services/recent_location_service.dart';
+import '../models/building.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  final Function(int) onTabChange;
+  const HomeScreen({super.key, required this.onTabChange});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Home')),
-      body: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text(
-            'Campus Map App',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 30),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 10),
 
-          // 🗺️ MAIN BUTTON
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/map');
-            },
-            child: const Text('Open Campus Map'),
-          ),
+              /// View Map Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    onTabChange(1); // Map tab index
+                  },
+                  child: const Text("View Map"),
+                ),
+              ),
 
-          const SizedBox(height: 15),
+              const SizedBox(height: 10),
 
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/search');
-            },
-            child: const Text('Search Location'),
-          ),
+              /// Search Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    onTabChange(2); // Search tab index
+                  },
+                  child: const Text("Search"),
+                ),
+              ),
 
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/favorite');
-            },
-            child: const Text('Favorite Places'),
+              const SizedBox(height: 30),
+
+              /// Recent Locations
+              const Text(
+                "Recent Locations",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 10),
+
+              const RecentLocationsSection(),
+
+              const SizedBox(height: 30),
+
+              /// Popular Locations
+              const Text(
+                "Popular Locations",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 10),
+
+              const PopularLocationsSection(),
+            ],
           ),
-        ],
+        ),
       ),
+    );
+  }
+}
+
+class RecentLocationsSection extends StatefulWidget {
+  const RecentLocationsSection({super.key});
+
+  @override
+  State<RecentLocationsSection> createState() => _RecentLocationsSectionState();
+}
+
+class _RecentLocationsSectionState extends State<RecentLocationsSection> {
+  final RecentLocationService recentService = RecentLocationService();
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Building> recent = recentService.getRecent();
+
+    if (recent.isEmpty) {
+      return const Text("No recent locations.");
+    }
+
+    return Column(
+      children: recent.map((building) {
+        return Card(
+          child: ListTile(
+            leading: const Icon(Icons.history),
+            title: Text(building.name),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class PopularLocationsSection extends StatelessWidget {
+  const PopularLocationsSection({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final popular = ["Cafeteria", "Main Hall", "Auditorium"];
+
+    return Column(
+      children: popular.map((name) {
+        return Card(
+          child: ListTile(
+            leading: const Icon(Icons.location_on),
+            title: Text(name),
+          ),
+        );
+      }).toList(),
     );
   }
 }
