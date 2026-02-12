@@ -4,6 +4,7 @@ import '../services/recent_location_service.dart';
 import '../models/building.dart';
 import '../services/search_history_service.dart';
 import '../services/map_selection_service.dart';
+import "../models/building_type.dart";
 
 class SearchScreen extends StatefulWidget {
   final Function(int) onTabChange;
@@ -19,7 +20,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final RecentLocationService recentService = RecentLocationService();
   final SearchHistoryService historyService = SearchHistoryService();
   String currentQuery = '';
-  String? selectedType;
+  BuildingType? selectedType;
 
   List<Building> allBuildings = [];
   List<Building> filteredBuildings = [];
@@ -31,7 +32,7 @@ class _SearchScreenState extends State<SearchScreen> {
     _loadBuildings();
   }
 
-  void _filterByType(String? type) {
+  void _filterByType(BuildingType type) {
     setState(() {
       if (selectedType == type) {
         selectedType = null; // toggle off
@@ -39,17 +40,17 @@ class _SearchScreenState extends State<SearchScreen> {
         selectedType = type;
       }
 
-      _applyFilters();
+      _applyFilters(query: currentQuery);
     });
   }
 
-  Widget _buildFilterChip(String type) {
+  Widget _buildFilterChip(BuildingType type) {
     final isSelected = selectedType == type;
 
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: ChoiceChip(
-        label: Text(type.toUpperCase()),
+        label: Text(type.displayName),
         selected: isSelected,
         onSelected: (_) => _filterByType(type),
       ),
@@ -144,11 +145,9 @@ class _SearchScreenState extends State<SearchScreen> {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Row(
-                    children: [
-                      _buildFilterChip("academic"),
-                      _buildFilterChip("gym"),
-                      _buildFilterChip("restaurant"),
-                    ],
+                    children: BuildingType.values.map((type) {
+                      return _buildFilterChip(type);
+                    }).toList(),
                   ),
                 ),
 
@@ -182,7 +181,7 @@ class _SearchScreenState extends State<SearchScreen> {
                               },
                             ),
                             title: Text(building.name),
-                            subtitle: Text(building.type),
+                            subtitle: Text(building.type.displayName),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [

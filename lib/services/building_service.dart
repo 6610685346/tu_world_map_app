@@ -1,5 +1,6 @@
 import 'package:latlong2/latlong.dart';
 import '../models/building.dart';
+import '../models/building_type.dart';
 
 class BuildingService {
   Future<List<Building>> getBuildings() async {
@@ -8,7 +9,7 @@ class BuildingService {
       Building(
         id: 'ENG',
         name: 'Engineering Building',
-        type: 'academic',
+        type: BuildingType.academic,
         imageUrl: 'https://via.placeholder.com/150',
         polygons: [
           [
@@ -22,7 +23,7 @@ class BuildingService {
       Building(
         id: 'GYM6',
         name: 'Gym 6',
-        type: 'gym',
+        type: BuildingType.gym,
         imageUrl: 'https://via.placeholder.com/150',
         polygons: [
           [
@@ -51,7 +52,7 @@ class BuildingService {
       Building(
         id: 'CAFE1',
         name: 'Campus Cafe',
-        type: 'restaurant',
+        type: BuildingType.restaurant,
         imageUrl: 'https://via.placeholder.com/150',
         polygons: [
           [

@@ -12,12 +12,20 @@ class RecentLocationService {
 
   final List<Building> _recent = [];
 
-  List<Building> getRecent() {
-    return _recent.reversed.take(3).toList();
+  void add(Building building) {
+    print("ADDING RECENT: ${building.name}");
+
+    _recent.removeWhere((b) => b.id == building.id);
+    _recent.insert(0, building);
+
+    print("RECENT COUNT: ${_recent.length}");
+
+    if (_recent.length > 10) {
+      _recent.removeLast();
+    }
   }
 
-  void add(Building building) {
-    _recent.removeWhere((b) => b.id == building.id);
-    _recent.add(building);
+  List<Building> getRecent() {
+    return List.unmodifiable(_recent);
   }
 }

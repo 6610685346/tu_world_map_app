@@ -1,10 +1,41 @@
 import 'package:flutter/material.dart';
 import '../services/recent_location_service.dart';
+import '../services/building_service.dart';
+import '../services/map_selection_service.dart';
+import '../models/building_type.dart';
 import '../models/building.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   final Function(int) onTabChange;
-  const HomeScreen({super.key, required this.onTabChange});
+  final int currentIndex;
+  const HomeScreen({
+    super.key,
+    required this.onTabChange,
+    required this.currentIndex,
+  });
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  List<Building> recent = [];
+
+  void _loadRecent() {
+    setState(() {
+      recent = RecentLocationService().getRecent();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // If tab changed to Home (index 0)
+    if (widget.currentIndex == 0 && oldWidget.currentIndex != 0) {
+      setState(() {});
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +54,7 @@ class HomeScreen extends StatelessWidget {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    onTabChange(1); // Map tab index
+                    widget.onTabChange(1); // Map tab index
                   },
                   child: const Text("View Map"),
                 ),
@@ -36,7 +67,7 @@ class HomeScreen extends StatelessWidget {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    onTabChange(2); // Search tab index
+                    widget.onTabChange(2); // Search tab index
                   },
                   child: const Text("Search"),
                 ),
@@ -52,7 +83,7 @@ class HomeScreen extends StatelessWidget {
 
               const SizedBox(height: 10),
 
-              const RecentLocationsSection(),
+              RecentLocationsSection(onTabChange: widget.onTabChange),
 
               const SizedBox(height: 30),
 
@@ -74,7 +105,8 @@ class HomeScreen extends StatelessWidget {
 }
 
 class RecentLocationsSection extends StatefulWidget {
-  const RecentLocationsSection({super.key});
+  final Function(int) onTabChange;
+  const RecentLocationsSection({super.key, required this.onTabChange});
 
   @override
   State<RecentLocationsSection> createState() => _RecentLocationsSectionState();
@@ -97,6 +129,10 @@ class _RecentLocationsSectionState extends State<RecentLocationsSection> {
           child: ListTile(
             leading: const Icon(Icons.history),
             title: Text(building.name),
+            onTap: () {
+              MapSelectionService().select(building);
+              widget.onTabChange(1); // open Map tab
+            },
           ),
         );
       }).toList(),
@@ -104,19 +140,44 @@ class _RecentLocationsSectionState extends State<RecentLocationsSection> {
   }
 }
 
-class PopularLocationsSection extends StatelessWidget {
+class PopularLocationsSection extends StatefulWidget {
   const PopularLocationsSection({super.key});
 
   @override
+  State<PopularLocationsSection> createState() =>
+      _PopularLocationsSectionState();
+}
+
+class _PopularLocationsSectionState extends State<PopularLocationsSection> {
+  final BuildingService buildingService = BuildingService();
+  List<Building> popular = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPopular();
+  }
+
+  void _loadPopular() async {
+    final all = await buildingService.getBuildings();
+    setState(() {
+      popular = all.take(3).toList();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final popular = ["Cafeteria", "Main Hall", "Auditorium"];
+    if (popular.isEmpty) {
+      return const Text("No popular locations.");
+    }
 
     return Column(
-      children: popular.map((name) {
+      children: popular.map((building) {
         return Card(
           child: ListTile(
             leading: const Icon(Icons.location_on),
-            title: Text(name),
+            title: Text(building.name),
+            subtitle: Text(building.type.displayName),
           ),
         );
       }).toList(),

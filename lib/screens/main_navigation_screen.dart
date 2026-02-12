@@ -15,8 +15,6 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
 
-  late final List<Widget> _screens;
-
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -26,20 +24,20 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   void initState() {
     super.initState();
+  }
 
-    _screens = [
-      HomeScreen(onTabChange: _onItemTapped),
+  @override
+  Widget build(BuildContext context) {
+    final screens = [
+      HomeScreen(onTabChange: _onItemTapped, currentIndex: _selectedIndex),
       const MapScreen(),
       SearchScreen(onTabChange: _onItemTapped),
       const FavoriteScreen(),
       const SettingsScreen(),
     ];
-  }
 
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _selectedIndex, children: _screens),
+      body: IndexedStack(index: _selectedIndex, children: screens),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,

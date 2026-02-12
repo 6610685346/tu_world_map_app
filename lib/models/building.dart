@@ -1,11 +1,12 @@
 import 'package:latlong2/latlong.dart';
+import 'building_type.dart';
 
 class Building {
   final String id;
   final String name;
-  final String type; // NEW
-  final String imageUrl; // NEW
-  bool isFavorite; // NEW (mutable)
+  final BuildingType type; //
+  final String imageUrl;
+  bool isFavorite;
   final List<List<LatLng>> polygons;
 
   Building({
