@@ -5,6 +5,10 @@ enum BuildingType {
   library,
   administration,
   parking,
+  building,
+  museum,
+  other,
+  dorm,
 }
 
 extension BuildingTypeExtension on BuildingType {
