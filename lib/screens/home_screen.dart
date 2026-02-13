@@ -4,6 +4,8 @@ import '../services/building_service.dart';
 import '../services/map_selection_service.dart';
 import '../models/building_type.dart';
 import '../models/building.dart';
+import 'dart:math';
+import 'package:flutter/cupertino.dart';
 
 class HomeScreen extends StatefulWidget {
   final Function(int) onTabChange;
@@ -40,37 +42,93 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Home')),
+      backgroundColor: const Color(0xFFfff6ea),
+      // ส่วนหัวของ App
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFfff6ea),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          
+          children: const [
+            Text('TU World Map', style:TextStyle(fontSize: 30, fontWeight: FontWeight.bold)), 
+            Text('Welcome back! Where would you like to go today?', style:TextStyle(fontSize: 14, color: Color(0xff7a7a7a)))
+          ],
+
+        )
+      ),
+
+      // ส่วน body ของ App
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+
+            // เนื้อหาในส่วน body
             children: [
               const SizedBox(height: 10),
-
-              /// View Map Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    widget.onTabChange(1); // Map tab index
-                  },
-                  child: const Text("View Map"),
-                ),
-              ),
-
+                const Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
 
-              /// Search Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    widget.onTabChange(2); // Search tab index
-                  },
-                  child: const Text("Search"),
-                ),
+              Row(
+                children: [
+                  /// View Map Button
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        widget.onTabChange(1); // Map tab index
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFFE60012),   // เปลี่ยนสีปุ่ม
+                        foregroundColor: Colors.white,  // สีตัวอักษร + icon
+                        padding: const EdgeInsets.symmetric(vertical: 30),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16), // ขอบมน
+                        )
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min, 
+                        children: const [
+                          Icon(
+                            CupertinoIcons.location_solid,
+                            size: 28,
+                          ),
+                          SizedBox(height: 6),
+                          Text("View Map"),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                const SizedBox(width: 16),
+
+                /// Search Button
+                 Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      widget.onTabChange(2); // Search tab index
+                    },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFFffbe42),
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 30),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16), // ขอบมน
+                        )
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min, 
+                        children: const [
+                          Icon(Icons.search, size: 28),
+                          SizedBox(height: 6),
+                          Text("Search"),
+                        ],
+                      ),
+                    ),
+                  ),
+                ]
+                /// View Map Button
               ),
 
               const SizedBox(height: 30),
@@ -95,7 +153,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 10),
 
-              const PopularLocationsSection(),
+              PopularLocationsSection(onTabChange: widget.onTabChange),
             ],
           ),
         ),
@@ -104,6 +162,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+//function to render recent locations and popular locations
+//-----------------------------------------------------------------------------------------------------------------
+
+//Render Locations
 class RecentLocationsSection extends StatefulWidget {
   final Function(int) onTabChange;
   const RecentLocationsSection({super.key, required this.onTabChange});
@@ -118,13 +180,14 @@ class _RecentLocationsSectionState extends State<RecentLocationsSection> {
   @override
   Widget build(BuildContext context) {
     final List<Building> recent = recentService.getRecent();
+    final List<Building> latestThree = recent.take(3).toList();
 
     if (recent.isEmpty) {
       return const Text("No recent locations.");
     }
 
     return Column(
-      children: recent.map((building) {
+      children: latestThree.map((building) {
         return Card(
           child: ListTile(
             leading: const Icon(Icons.history),
@@ -140,8 +203,12 @@ class _RecentLocationsSectionState extends State<RecentLocationsSection> {
   }
 }
 
+
+// Popular Location
 class PopularLocationsSection extends StatefulWidget {
-  const PopularLocationsSection({super.key});
+  final Function(int) onTabChange;
+
+  const PopularLocationsSection({super.key, required this.onTabChange});
 
   @override
   State<PopularLocationsSection> createState() =>
@@ -150,6 +217,7 @@ class PopularLocationsSection extends StatefulWidget {
 
 class _PopularLocationsSectionState extends State<PopularLocationsSection> {
   final BuildingService buildingService = BuildingService();
+  final RecentLocationService recentService = RecentLocationService();
   List<Building> popular = [];
 
   @override
@@ -160,8 +228,9 @@ class _PopularLocationsSectionState extends State<PopularLocationsSection> {
 
   void _loadPopular() async {
     final all = await buildingService.getBuildings();
+    final shuffled = List.of(all)..shuffle();
     setState(() {
-      popular = all.take(3).toList();
+      popular = shuffled.take(min(3, shuffled.length)).toList();
     });
   }
 
@@ -178,6 +247,11 @@ class _PopularLocationsSectionState extends State<PopularLocationsSection> {
             leading: const Icon(Icons.location_on),
             title: Text(building.name),
             subtitle: Text(building.type.displayName),
+            onTap: () {
+              recentService.add(building);
+              MapSelectionService().select(building);
+              widget.onTabChange(1);
+            },  
           ),
         );
       }).toList(),
