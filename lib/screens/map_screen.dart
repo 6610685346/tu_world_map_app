@@ -5,6 +5,8 @@ import '../models/building.dart';
 import '../services/building_service.dart';
 import '../services/map_selection_service.dart';
 import '../models/building.dart';
+import '../services/navigation_service.dart';
+import 'package:geolocator/geolocator.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -15,37 +17,42 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final MapController mapController = MapController();
-  String? selectedBuildingId;
   final BuildingService buildingService = BuildingService();
-  List<Building> buildings = [];
-  bool isLoading = true;
   final MapSelectionService selectionService = MapSelectionService();
+  List<Building> buildings = [];
+  List<LatLng> currentRoute = [];
+  String? selectedBuildingId;
+  bool isLoading = true;
+  LatLng? currentLocation;
 
   @override
   void initState() {
     super.initState();
     _loadBuildings();
+    _getCurrentLocation();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkSelectionLoop();
-    });
+    selectionService.clear();
+    selectionService.addListener(_onBuildingSelected);
   }
 
-  void _checkSelectionLoop() {
+  void _onBuildingSelected() {
     final selected = selectionService.selectedBuilding;
 
-    if (selected != null && buildings.isNotEmpty) {
-      mapController.fitBounds(
-        LatLngBounds.fromPoints(selected.polygons.first),
-        options: const FitBoundsOptions(padding: EdgeInsets.all(40)),
-      );
+    if (selected == null || buildings.isEmpty) return;
+    final polygon = selected.polygons.first;
+    final center = _polygonCentroid(polygon);
 
-      selectionService.clear();
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkSelectionLoop();
+    setState(() {
+      selectedBuildingId = selected.id;
     });
+
+    mapController.move(center, 18.33);
+  }
+
+  @override
+  void dispose() {
+    selectionService.removeListener(_onBuildingSelected);
+    super.dispose();
   }
 
   Future<void> _loadBuildings() async {
@@ -56,11 +63,58 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
-  /// 🔒 University campus bounds
-  final LatLngBounds campusBounds = LatLngBounds(
-    LatLng(14.0645, 100.5995), // Southwest
-    LatLng(14.0725, 100.6090), // Northeast
-  );
+  Future<void> navigateToBuilding(Building building) async {
+    if (currentLocation == null) {
+      print("Current location not available yet.");
+      return;
+    }
+    final destination = _polygonCentroid(building.polygons.first);
+
+    final route = await NavigationService().buildRoute(
+      start: currentLocation!, // 🔵 real GPS
+      destination: destination,
+    );
+
+    setState(() {
+      currentRoute = route;
+    });
+  }
+
+  Future<void> _getCurrentLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+    print("GPS FUNCTION CALLED 🔵🔵🔵");
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      print("Location services disabled.");
+      return;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        print("Location permission denied");
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      print("Location permanently denied");
+      return;
+    }
+
+    Position position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+
+    setState(() {
+      currentLocation = LatLng(position.latitude, position.longitude);
+    });
+
+    print("Current Location: $currentLocation");
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,45 +130,17 @@ class _MapScreenState extends State<MapScreen> {
                 minZoom: 15,
                 maxZoom: 19,
 
+                onPositionChanged: (position, hasGesture) {
+                  print("Current Zoom: ${position.zoom}");
+                },
+
                 /// 🔒 Restrict camera to campus
                 cameraConstraint: CameraConstraint.contain(
-                  bounds: campusBounds,
+                  bounds: LatLngBounds(
+                    LatLng(14.00, 100.55),
+                    LatLng(14.10, 100.65),
+                  ),
                 ),
-
-                /// 👆 Tap detection
-                onTap: (tapPosition, point) {
-                  for (final building in buildings) {
-                    for (final polygon in building.polygons) {
-                      if (_pointInPolygon(point, polygon)) {
-                        setState(() {
-                          selectedBuildingId = building.id;
-                        });
-
-                        mapController.fitBounds(
-                          LatLngBounds.fromPoints(polygon),
-                          options: const FitBoundsOptions(
-                            padding: EdgeInsets.all(40),
-                          ),
-                        );
-
-                        showDialog(
-                          context: context,
-                          builder: (_) => AlertDialog(
-                            title: Text(building.name),
-                            content: const Text('Selected building'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('OK'),
-                              ),
-                            ],
-                          ),
-                        );
-                        return;
-                      }
-                    }
-                  }
-                },
               ),
               children: [
                 /// 🗺️ MapTiler base map
@@ -127,40 +153,40 @@ class _MapScreenState extends State<MapScreen> {
                 /// 🟧 Building polygons
                 PolygonLayer(
                   polygons: buildings.expand((building) {
-                    return (building.polygons as List<List<LatLng>>).map(
+                    final isSelected = building.id == selectedBuildingId;
+                    return building.polygons.map(
                       (polygon) => Polygon(
                         points: polygon,
                         isFilled: true,
-                        color: Colors.orange.withOpacity(0.35),
-                        borderColor: Colors.orange,
-                        borderStrokeWidth: 2,
+                        color: building.id == selectedBuildingId
+                            ? Colors.blue.withOpacity(0.6) // selected
+                            : Colors.transparent,
+                        borderColor: building.id == selectedBuildingId
+                            ? Colors.blue
+                            : Colors.transparent,
+                        borderStrokeWidth: building.id == selectedBuildingId
+                            ? 3
+                            : 0,
                       ),
                     );
                   }).toList(),
                 ),
 
-                /// 📍 GYM 6 center marker
-                MarkerLayer(
-                  markers: buildings.where((b) => b.id == 'GYM6').expand((
-                    building,
-                  ) {
-                    return (building.polygons as List<List<LatLng>>).map((
-                      polygon,
-                    ) {
-                      final center = _polygonCentroid(polygon);
-                      return Marker(
-                        point: center,
+                if (currentLocation != null)
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: currentLocation!,
                         width: 40,
                         height: 40,
                         child: const Icon(
-                          Icons.location_on,
-                          color: Colors.red,
-                          size: 40,
+                          Icons.my_location,
+                          color: Colors.blue,
+                          size: 30,
                         ),
-                      );
-                    });
-                  }).toList(),
-                ),
+                      ),
+                    ],
+                  ),
 
                 /// ✅ Required attribution (correct placement)
                 RichAttributionWidget(
