@@ -1,6 +1,7 @@
+import 'package:flutter/material.dart';
 import '../models/building.dart';
 
-class MapSelectionService {
+class MapSelectionService extends ChangeNotifier {
   static final MapSelectionService _instance = MapSelectionService._internal();
 
   factory MapSelectionService() {
@@ -13,9 +14,11 @@ class MapSelectionService {
 
   void select(Building building) {
     selectedBuilding = building;
+    notifyListeners();
   }
 
   void clear() {
     selectedBuilding = null;
+    notifyListeners();
   }
 }
