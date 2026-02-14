@@ -1,6 +1,8 @@
+import 'package:logging/logging.dart';
 import '../models/building.dart';
 
 class RecentLocationService {
+  final _log = Logger('RecentLocationService');
   static final RecentLocationService _instance =
       RecentLocationService._internal();
 
@@ -13,12 +15,12 @@ class RecentLocationService {
   final List<Building> _recent = [];
 
   void add(Building building) {
-    print("ADDING RECENT: ${building.name}");
+    _log.info("ADDING RECENT: ${building.name}");
 
     _recent.removeWhere((b) => b.id == building.id);
     _recent.insert(0, building);
 
-    print("RECENT COUNT: ${_recent.length}");
+    _log.info("RECENT COUNT: ${_recent.length}");
 
     if (_recent.length > 10) {
       _recent.removeLast();

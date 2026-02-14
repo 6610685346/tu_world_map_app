@@ -23,11 +23,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<Building> recent = [];
 
-  void _loadRecent() {
-    setState(() {
-      recent = RecentLocationService().getRecent();
-    });
-  }
+  // void _loadRecent() {
+  //   setState(() {
+  //     recent = RecentLocationService().getRecent();
+  //   });
+  // }
 
   @override
   void didUpdateWidget(covariant HomeScreen oldWidget) {
@@ -49,13 +49,18 @@ class _HomeScreenState extends State<HomeScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
-          
-          children: const [
-            Text('TU World Map', style:TextStyle(fontSize: 30, fontWeight: FontWeight.bold)), 
-            Text('Welcome back! Where would you like to go today?', style:TextStyle(fontSize: 14, color: Color(0xff7a7a7a)))
-          ],
 
-        )
+          children: const [
+            Text(
+              'TU World Map',
+              style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              'Welcome back! Where would you like to go today?',
+              style: TextStyle(fontSize: 14, color: Color(0xff7a7a7a)),
+            ),
+          ],
+        ),
       ),
 
       // ส่วน body ของ App
@@ -68,7 +73,10 @@ class _HomeScreenState extends State<HomeScreen> {
             // เนื้อหาในส่วน body
             children: [
               const SizedBox(height: 10),
-                const Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text(
+                "Quick Actions",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 10),
 
               Row(
@@ -80,20 +88,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         widget.onTabChange(1); // Map tab index
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFE60012),   // เปลี่ยนสีปุ่ม
-                        foregroundColor: Colors.white,  // สีตัวอักษร + icon
+                        backgroundColor: Color(0xFFE60012), // เปลี่ยนสีปุ่ม
+                        foregroundColor: Colors.white, // สีตัวอักษร + icon
                         padding: const EdgeInsets.symmetric(vertical: 30),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16), // ขอบมน
-                        )
+                        ),
                       ),
                       child: Column(
-                        mainAxisSize: MainAxisSize.min, 
+                        mainAxisSize: MainAxisSize.min,
                         children: const [
-                          Icon(
-                            CupertinoIcons.location_solid,
-                            size: 28,
-                          ),
+                          Icon(CupertinoIcons.location_solid, size: 28),
                           SizedBox(height: 6),
                           Text("View Map"),
                         ],
@@ -101,24 +106,24 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
-                const SizedBox(width: 16),
+                  const SizedBox(width: 16),
 
-                /// Search Button
-                 Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      widget.onTabChange(2); // Search tab index
-                    },
+                  /// Search Button
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        widget.onTabChange(2); // Search tab index
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Color(0xFFffbe42),
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 30),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16), // ขอบมน
-                        )
+                        ),
                       ),
                       child: Column(
-                        mainAxisSize: MainAxisSize.min, 
+                        mainAxisSize: MainAxisSize.min,
                         children: const [
                           Icon(Icons.search, size: 28),
                           SizedBox(height: 6),
@@ -127,7 +132,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-                ]
+                ],
+
                 /// View Map Button
               ),
 
@@ -203,7 +209,6 @@ class _RecentLocationsSectionState extends State<RecentLocationsSection> {
   }
 }
 
-
 // Popular Location
 class PopularLocationsSection extends StatefulWidget {
   final Function(int) onTabChange;
@@ -251,7 +256,7 @@ class _PopularLocationsSectionState extends State<PopularLocationsSection> {
               recentService.add(building);
               MapSelectionService().select(building);
               widget.onTabChange(1);
-            },  
+            },
           ),
         );
       }).toList(),

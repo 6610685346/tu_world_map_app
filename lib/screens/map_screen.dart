@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:maplibre_gl/maplibre_gl.dart' as maplibre;
 import 'package:latlong2/latlong.dart';
 import '../models/building.dart';
 import '../services/building_service.dart';
 import '../services/map_selection_service.dart';
-import '../models/building.dart';
 import '../services/navigation_service.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:logging/logging.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -16,7 +18,8 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  final MapController mapController = MapController();
+  final _log = Logger('MapScreen');
+  late maplibre.MapLibreMapController mapController;
   final BuildingService buildingService = BuildingService();
   final MapSelectionService selectionService = MapSelectionService();
   List<Building> buildings = [];
@@ -24,15 +27,82 @@ class _MapScreenState extends State<MapScreen> {
   String? selectedBuildingId;
   bool isLoading = true;
   LatLng? currentLocation;
+  String? styleJson;
 
   @override
   void initState() {
     super.initState();
+    _loadStyleJson();
     _loadBuildings();
     _getCurrentLocation();
 
     selectionService.clear();
     selectionService.addListener(_onBuildingSelected);
+  }
+
+  @override
+  void dispose() {
+    selectionService.removeListener(_onBuildingSelected);
+    super.dispose();
+  }
+
+  Future<void> _loadStyleJson() async {
+    try {
+      final jsonString = await rootBundle.loadString(
+        'assets/styles/simple_shortbread.json',
+      );
+      setState(() {
+        styleJson = jsonString;
+      });
+      _log.info('Loaded style JSON');
+    } catch (e, stackTrace) {
+      _log.severe('Failed to load style JSON', e, stackTrace);
+    }
+  }
+
+  Future<void> _loadBuildings() async {
+    final data = await buildingService.getBuildings();
+    setState(() {
+      buildings = data;
+      isLoading = false;
+    });
+    _log.info('Buildings loaded: ${buildings.length}');
+  }
+
+  Future<void> _getCurrentLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+    _log.info("Location services called");
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      _log.warning("Location services disabled");
+      return;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        _log.warning("Location permission denied");
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      _log.warning("Location permanently denied");
+      return;
+    }
+
+    Position position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+
+    setState(() {
+      currentLocation = LatLng(position.latitude, position.longitude);
+    });
+
+    _log.info("Current Location: $currentLocation");
   }
 
   void _onBuildingSelected() {
@@ -46,32 +116,111 @@ class _MapScreenState extends State<MapScreen> {
       selectedBuildingId = selected.id;
     });
 
-    mapController.move(center, 18.33);
-  }
-
-  @override
-  void dispose() {
-    selectionService.removeListener(_onBuildingSelected);
-    super.dispose();
-  }
-
-  Future<void> _loadBuildings() async {
-    final data = await buildingService.getBuildings();
-    setState(() {
-      buildings = data;
-      isLoading = false;
+    // Animate camera to selected building
+    Future.delayed(const Duration(milliseconds: 100), () {
+      try {
+        mapController.animateCamera(
+          maplibre.CameraUpdate.newLatLngZoom(
+            maplibre.LatLng(center.latitude, center.longitude),
+            18.33,
+          ),
+        );
+      } catch (e, stackTrace) {
+        _log.severe('Camera animation error', e, stackTrace);
+      }
     });
+  }
+
+  void _onMapCreated(maplibre.MapLibreMapController controller) {
+    mapController = controller;
+    _log.info('✅ MapLibre controller created');
+  }
+
+  Future<void> _onStyleLoaded() async {
+    try {
+      _log.info('🗺️ Map style loaded callback triggered');
+
+      if (buildings.isEmpty) {
+        _log.info('📦 Loading buildings from service...');
+        await _loadBuildings();
+      }
+
+      if (buildings.isNotEmpty) {
+        _log.info(
+          '🎯 Adding building source to map (${buildings.length} buildings)...',
+        );
+        await _addBuildingSource();
+        _log.info('✅ Buildings successfully added to map');
+      } else {
+        _log.warning('⚠️ No buildings to add');
+      }
+    } catch (e, stackTrace) {
+      _log.severe('❌ Error in _onStyleLoaded', e, stackTrace);
+    }
+  }
+
+  Future<void> _addBuildingSource() async {
+    try {
+      /// Create GeoJSON feature collection from buildings
+      final features = <Map<String, dynamic>>[];
+
+      for (final building in buildings) {
+        for (final polygon in building.polygons) {
+          features.add({
+            'type': 'Feature',
+            'properties': {'id': building.id, 'name': building.name},
+            'geometry': {
+              'type': 'Polygon',
+              'coordinates': [
+                polygon
+                    .map((point) => [point.longitude, point.latitude])
+                    .toList(),
+              ],
+            },
+          });
+        }
+      }
+
+      final geoJson = {'type': 'FeatureCollection', 'features': features};
+
+      /// Add source (use app-scoped id to avoid colliding with style-defined layers)
+      const String sourceId = 'app-buildings';
+      const String fillLayerId = 'app-buildings-fill';
+      const String strokeLayerId = 'app-buildings-stroke';
+
+      await mapController.addSource(
+        sourceId,
+        maplibre.GeojsonSourceProperties(data: geoJson),
+      );
+
+      /// Add fill layer (use CSS color strings; opacity is controlled by `fillOpacity`)
+      await mapController.addLayer(
+        sourceId,
+        fillLayerId,
+        maplibre.FillLayerProperties(fillColor: '#1f78b4', fillOpacity: 0.3),
+      );
+
+      /// Add stroke layer
+      await mapController.addLayer(
+        sourceId,
+        strokeLayerId,
+        maplibre.LineLayerProperties(lineColor: '#1f78b4', lineWidth: 2),
+      );
+    } catch (e, stackTrace) {
+      _log.severe('Error adding building source', e, stackTrace);
+      rethrow;
+    }
   }
 
   Future<void> navigateToBuilding(Building building) async {
     if (currentLocation == null) {
-      print("Current location not available yet.");
+      _log.warning("Current location not available yet.");
       return;
     }
     final destination = _polygonCentroid(building.polygons.first);
 
     final route = await NavigationService().buildRoute(
-      start: currentLocation!, // 🔵 real GPS
+      start: currentLocation!,
       destination: destination,
     );
 
@@ -80,152 +229,6 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
-  Future<void> _getCurrentLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-    print("GPS FUNCTION CALLED 🔵🔵🔵");
-
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      print("Location services disabled.");
-      return;
-    }
-
-    permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        print("Location permission denied");
-        return;
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      print("Location permanently denied");
-      return;
-    }
-
-    Position position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
-
-    setState(() {
-      currentLocation = LatLng(position.latitude, position.longitude);
-    });
-
-    print("Current Location: $currentLocation");
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Campus Map')),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : FlutterMap(
-              mapController: mapController,
-              options: MapOptions(
-                initialCenter: const LatLng(14.0683, 100.6034),
-                initialZoom: 16,
-                minZoom: 15,
-                maxZoom: 19,
-
-                onPositionChanged: (position, hasGesture) {
-                  print("Current Zoom: ${position.zoom}");
-                },
-
-                /// 🔒 Restrict camera to campus
-                cameraConstraint: CameraConstraint.contain(
-                  bounds: LatLngBounds(
-                    LatLng(14.00, 100.55),
-                    LatLng(14.10, 100.65),
-                  ),
-                ),
-              ),
-              children: [
-                /// 🗺️ MapTiler base map
-                TileLayer(
-                  urlTemplate:
-                      'https://api.maptiler.com/maps/openstreetmap/256/{z}/{x}/{y}.jpg?key=pKEb1AjUUNqlSI9aLaO5',
-                  userAgentPackageName: 'com.example.tu_world_map_app',
-                ),
-
-                /// 🟧 Building polygons
-                PolygonLayer(
-                  polygons: buildings.expand((building) {
-                    final isSelected = building.id == selectedBuildingId;
-                    return building.polygons.map(
-                      (polygon) => Polygon(
-                        points: polygon,
-                        isFilled: true,
-                        color: building.id == selectedBuildingId
-                            ? Colors.blue.withOpacity(0.6) // selected
-                            : Colors.transparent,
-                        borderColor: building.id == selectedBuildingId
-                            ? Colors.blue
-                            : Colors.transparent,
-                        borderStrokeWidth: building.id == selectedBuildingId
-                            ? 3
-                            : 0,
-                      ),
-                    );
-                  }).toList(),
-                ),
-
-                if (currentLocation != null)
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: currentLocation!,
-                        width: 40,
-                        height: 40,
-                        child: const Icon(
-                          Icons.my_location,
-                          color: Colors.blue,
-                          size: 30,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                /// ✅ Required attribution (correct placement)
-                RichAttributionWidget(
-                  alignment: AttributionAlignment.bottomRight,
-                  attributions: const [
-                    TextSourceAttribution(
-                      '© MapTiler © OpenStreetMap contributors',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-    );
-  }
-
-  /// 🎯 Point-in-polygon detection
-  bool _pointInPolygon(LatLng point, List<LatLng> polygon) {
-    int intersections = 0;
-
-    for (int i = 0; i < polygon.length - 1; i++) {
-      final a = polygon[i];
-      final b = polygon[i + 1];
-
-      if ((a.latitude > point.latitude) != (b.latitude > point.latitude)) {
-        final intersectLng =
-            (b.longitude - a.longitude) *
-                (point.latitude - a.latitude) /
-                (b.latitude - a.latitude) +
-            a.longitude;
-
-        if (point.longitude < intersectLng) {
-          intersections++;
-        }
-      }
-    }
-    return intersections.isOdd;
-  }
-
-  /// 📐 Polygon centroid
   LatLng _polygonCentroid(List<LatLng> polygon) {
     double latSum = 0;
     double lngSum = 0;
@@ -235,5 +238,30 @@ class _MapScreenState extends State<MapScreen> {
       lngSum += p.longitude;
     }
     return LatLng(latSum / polygon.length, lngSum / polygon.length);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Campus Map')),
+      body: isLoading || styleJson == null
+          ? const Center(child: CircularProgressIndicator())
+          : maplibre.MapLibreMap(
+              styleString: styleJson!,
+              onMapCreated: _onMapCreated,
+              onStyleLoadedCallback: _onStyleLoaded,
+              initialCameraPosition: const maplibre.CameraPosition(
+                target: maplibre.LatLng(14.0683, 100.6034),
+                zoom: 14,
+              ),
+              minMaxZoomPreference: const maplibre.MinMaxZoomPreference(0, 24),
+              trackCameraPosition: true,
+              scrollGesturesEnabled: true,
+              zoomGesturesEnabled: true,
+              tiltGesturesEnabled: true,
+              rotateGesturesEnabled: true,
+              myLocationEnabled: !kIsWeb,
+            ),
+    );
   }
 }
