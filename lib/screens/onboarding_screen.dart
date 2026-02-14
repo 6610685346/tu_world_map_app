@@ -75,7 +75,7 @@ class _TUWorldMapOnboardingState extends State<TUWorldMapOnboarding> {
                     letterSpacing: 0.5,
                     shadows: [
                       Shadow(
-                        color: Colors.red.withOpacity(0.2),
+                        color: Colors.red.withValues(alpha: 0.2),
                         offset: const Offset(0, 2),
                         blurRadius: 4,
                       ),
@@ -129,7 +129,7 @@ class _TUWorldMapOnboardingState extends State<TUWorldMapOnboarding> {
                                     colors: [
                                       const Color(
                                         0xFFEF5350,
-                                      ).withOpacity(0.2), // Red glow
+                                      ).withValues(alpha: 0.2), // Red glow
                                       Colors.transparent,
                                     ],
                                   ),
@@ -184,7 +184,9 @@ class _TUWorldMapOnboardingState extends State<TUWorldMapOnboarding> {
                                       vertical: 16,
                                     ),
                                     elevation: 4,
-                                    shadowColor: Colors.red.withOpacity(0.5),
+                                    shadowColor: Colors.red.withValues(
+                                      alpha: 0.5,
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(24),
                                     ),
@@ -225,12 +227,12 @@ class _TUWorldMapOnboardingState extends State<TUWorldMapOnboarding> {
                             ? const Color(0xFFD32F2F) // Red
                             : const Color(
                                 0xFFFFCDD2,
-                              ).withOpacity(0.5), // Light red
+                              ).withValues(alpha: 0.5), // Light red
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: _currentPage == index
                             ? [
                                 BoxShadow(
-                                  color: Colors.red.withOpacity(0.4),
+                                  color: Colors.red.withValues(alpha: 0.4),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),

@@ -415,11 +415,11 @@ class _MapScreenState extends State<MapScreen> {
                     right: 16,
                     child: Card(
                       elevation: 4,
-                      shadowColor: Colors.red.withOpacity(0.3),
+                      shadowColor: Colors.red.withValues(alpha: 0.3),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      color: Colors.white.withOpacity(0.95),
+                      color: Colors.white.withValues(alpha: 0.95),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Row(
@@ -427,7 +427,9 @@ class _MapScreenState extends State<MapScreen> {
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFFCDD2).withOpacity(0.5),
+                                color: const Color(
+                                  0xFFFFCDD2,
+                                ).withValues(alpha: 0.5),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: const Icon(
@@ -468,7 +470,7 @@ class _MapScreenState extends State<MapScreen> {
                                       fontSize: 14,
                                       color: const Color(
                                         0xFF5D4037,
-                                      ).withOpacity(0.8),
+                                      ).withValues(alpha: 0.8),
                                     ),
                                   ),
                                 ],

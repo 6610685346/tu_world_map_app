@@ -275,7 +275,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Icon(
                       Icons.school,
                       size: 48,
-                      color: Color(0xFFD32F2F).withOpacity(0.3),
+                      color: Color(0xFFD32F2F).withValues(alpha: 0.3),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -319,9 +319,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildSettingsCard(List<Widget> children) {
     return Card(
-      color: Colors.white.withOpacity(0.9),
+      color: Colors.white.withValues(alpha: 0.9),
       elevation: 2,
-      shadowColor: Colors.red.withOpacity(0.1),
+      shadowColor: Colors.red.withValues(alpha: 0.1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Column(children: children),
     );
@@ -340,7 +340,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: Color(0xFFD32F2F).withOpacity(0.1),
+          color: Color(0xFFD32F2F).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(icon, color: Color(0xFFD32F2F), size: 22),
@@ -360,7 +360,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeColor: Color(0xFFD32F2F),
+        activeThumbColor: Color(0xFFD32F2F),
       ),
     );
   }
@@ -378,7 +378,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: Color(0xFFD32F2F).withOpacity(0.1),
+          color: Color(0xFFD32F2F).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(icon, color: Color(0xFFD32F2F), size: 22),
@@ -405,7 +405,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       height: 1,
       indent: 72,
       endIndent: 16,
-      color: Color(0xFF5D4037).withOpacity(0.1),
+      color: Color(0xFF5D4037).withValues(alpha: 0.1),
     );
   }
 

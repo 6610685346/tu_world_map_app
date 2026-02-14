@@ -66,7 +66,9 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                     Icon(
                       Icons.favorite_border,
                       size: 80,
-                      color: Color(0xFFD32F2F).withOpacity(0.3), // Light red
+                      color: Color(
+                        0xFFD32F2F,
+                      ).withValues(alpha: 0.3), // Light red
                     ),
                     const SizedBox(height: 16),
                     Text(
@@ -100,7 +102,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                           vertical: 16,
                         ),
                         elevation: 3,
-                        shadowColor: Colors.red.withOpacity(0.3),
+                        shadowColor: Colors.red.withValues(alpha: 0.3),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -151,9 +153,9 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                       child: Icon(Icons.delete, color: Colors.white, size: 28),
                     ),
                     child: Card(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       elevation: 2,
-                      shadowColor: Colors.red.withOpacity(0.2),
+                      shadowColor: Colors.red.withValues(alpha: 0.2),
                       margin: const EdgeInsets.only(bottom: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -167,7 +169,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                           width: 48,
                           height: 48,
                           decoration: BoxDecoration(
-                            color: Color(0xFFD32F2F).withOpacity(0.1),
+                            color: Color(0xFFD32F2F).withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(

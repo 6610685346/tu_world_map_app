@@ -115,7 +115,7 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
         selected: isSelected,
         selectedColor: const Color(0xFFD32F2F), // Red
-        backgroundColor: Colors.white.withOpacity(0.7),
+        backgroundColor: Colors.white.withValues(alpha: 0.7),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: BorderSide(
@@ -163,7 +163,7 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   @override
-  Widget build(BuildContext) {
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -203,14 +203,14 @@ class _SearchScreenState extends State<SearchScreen> {
                       decoration: InputDecoration(
                         hintText: "Search building...",
                         hintStyle: TextStyle(
-                          color: const Color(0xFF3E2723).withOpacity(0.5),
+                          color: const Color(0xFF3E2723).withValues(alpha: 0.5),
                         ),
                         prefixIcon: const Icon(
                           Icons.search,
                           color: Color(0xFFD32F2F), // Red
                         ),
                         filled: true,
-                        fillColor: Colors.white.withOpacity(0.8),
+                        fillColor: Colors.white.withValues(alpha: 0.8),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: const BorderSide(
@@ -257,7 +257,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       '${filteredBuildings.length} building${filteredBuildings.length != 1 ? 's' : ''} found',
                       style: TextStyle(
                         fontSize: 12,
-                        color: const Color(0xFF5D4037).withOpacity(0.7),
+                        color: const Color(0xFF5D4037).withValues(alpha: 0.7),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -275,7 +275,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                   size: 64,
                                   color: const Color(
                                     0xFFD32F2F,
-                                  ).withOpacity(0.3),
+                                  ).withValues(alpha: 0.3),
                                 ),
                                 const SizedBox(height: 16),
                                 const Text(
@@ -293,7 +293,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                     fontSize: 14,
                                     color: const Color(
                                       0xFF5D4037,
-                                    ).withOpacity(0.8),
+                                    ).withValues(alpha: 0.8),
                                   ),
                                 ),
                               ],
@@ -324,9 +324,9 @@ class _SearchScreenState extends State<SearchScreen> {
                                   horizontal: 12,
                                   vertical: 6,
                                 ),
-                                color: Colors.white.withOpacity(0.9),
+                                color: Colors.white.withValues(alpha: 0.9),
                                 elevation: 2,
-                                shadowColor: Colors.red.withOpacity(0.2),
+                                shadowColor: Colors.red.withValues(alpha: 0.2),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -346,7 +346,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                               decoration: BoxDecoration(
                                                 color: const Color(
                                                   0xFFFFCDD2,
-                                                ).withOpacity(0.3),
+                                                ).withValues(alpha: 0.3),
                                                 borderRadius:
                                                     BorderRadius.circular(8),
                                               ),
