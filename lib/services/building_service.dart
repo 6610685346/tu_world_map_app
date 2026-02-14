@@ -1,4 +1,4 @@
-import 'package:tu_world_map_app/utils/buildingsList.dart';
+import 'package:tu_world_map_app/utils/buildings_list.dart';
 import 'package:tu_world_map_app/models/building.dart';
 
 class BuildingService {
