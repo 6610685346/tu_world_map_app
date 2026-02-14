@@ -22,6 +22,7 @@ class _MapScreenState extends State<MapScreen> {
   List<Building> buildings = [];
   List<LatLng> currentRoute = [];
   String? selectedBuildingId;
+  Building? selectedBuilding;
   bool isLoading = true;
   LatLng? currentLocation;
 
@@ -39,11 +40,13 @@ class _MapScreenState extends State<MapScreen> {
     final selected = selectionService.selectedBuilding;
 
     if (selected == null || buildings.isEmpty) return;
+
     final polygon = selected.polygons.first;
     final center = _polygonCentroid(polygon);
 
     setState(() {
       selectedBuildingId = selected.id;
+      selectedBuilding = selected;
     });
 
     mapController.move(center, 18.33);
@@ -64,20 +67,38 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> navigateToBuilding(Building building) async {
+    print("NAVIGATION STARTED 🚀");
+
     if (currentLocation == null) {
       print("Current location not available yet.");
       return;
     }
-    final destination = _polygonCentroid(building.polygons.first);
+    final destination = _getClosestPoint(
+      currentLocation!,
+      building.polygons.first,
+    );
+
+    print("BUILDING NAME: ${building.name}");
+    print("DESTINATION: $destination");
+    print("START: $currentLocation");
 
     final route = await NavigationService().buildRoute(
       start: currentLocation!, // 🔵 real GPS
       destination: destination,
     );
 
+    print("ROUTE POINTS COUNT: ${route.length}");
+    print("LAST ROUTE POINT: ${route.last}");
+
     setState(() {
       currentRoute = route;
     });
+
+    final bounds = LatLngBounds.fromPoints(route);
+
+    mapController.fitCamera(
+      CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(50)),
+    );
   }
 
   Future<void> _getCurrentLocation() async {
@@ -116,10 +137,40 @@ class _MapScreenState extends State<MapScreen> {
     print("Current Location: $currentLocation");
   }
 
+  LatLng _getClosestPoint(LatLng start, List<LatLng> polygon) {
+    double minDistance = double.infinity;
+    LatLng closest = polygon.first;
+
+    for (final point in polygon) {
+      final distance = Distance().as(LengthUnit.Meter, start, point);
+
+      if (distance < minDistance) {
+        minDistance = distance;
+        closest = point;
+      }
+    }
+
+    return closest;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Campus Map')),
+      appBar: AppBar(
+        title: const Text('Campus Map'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.directions),
+            onPressed: () {
+              if (buildings.isNotEmpty) {
+                if (selectedBuilding != null) {
+                  navigateToBuilding(selectedBuilding!);
+                }
+              }
+            },
+          ),
+        ],
+      ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : FlutterMap(
@@ -171,6 +222,18 @@ class _MapScreenState extends State<MapScreen> {
                     );
                   }).toList(),
                 ),
+
+                /// 🔵 Navigation Route
+                if (currentRoute.isNotEmpty)
+                  PolylineLayer(
+                    polylines: [
+                      Polyline(
+                        points: currentRoute,
+                        strokeWidth: 5,
+                        color: Colors.blue,
+                      ),
+                    ],
+                  ),
 
                 if (currentLocation != null)
                   MarkerLayer(
