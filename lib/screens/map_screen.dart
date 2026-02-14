@@ -134,29 +134,29 @@ class _MapScreenState extends State<MapScreen> {
 
   void _onMapCreated(maplibre.MapLibreMapController controller) {
     mapController = controller;
-    _log.info('✅ MapLibre controller created');
+    _log.info('MapLibre controller created');
   }
 
   Future<void> _onStyleLoaded() async {
     try {
-      _log.info('🗺️ Map style loaded callback triggered');
+      _log.info('Map style loaded callback triggered');
 
       if (buildings.isEmpty) {
-        _log.info('📦 Loading buildings from service...');
+        _log.info('Loading buildings from service...');
         await _loadBuildings();
       }
 
       if (buildings.isNotEmpty) {
         _log.info(
-          '🎯 Adding building source to map (${buildings.length} buildings)...',
+          'Adding building source to map (${buildings.length} buildings)...',
         );
         await _addBuildingSource();
-        _log.info('✅ Buildings successfully added to map');
+        _log.info('Buildings successfully added to map');
       } else {
-        _log.warning('⚠️ No buildings to add');
+        _log.warning('No buildings to add');
       }
     } catch (e, stackTrace) {
-      _log.severe('❌ Error in _onStyleLoaded', e, stackTrace);
+      _log.severe('Error in _onStyleLoaded', e, stackTrace);
     }
   }
 

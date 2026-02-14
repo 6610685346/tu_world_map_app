@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'screens/onboarding_screen.dart';
 import 'dart:developer' as developer;
@@ -7,6 +8,12 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   Logger.root.level = Level.ALL; // defaults to Level.INFO
   Logger.root.onRecord.listen((record) {
+    // Print to console in debug mode for visibility
+    if (kDebugMode) {
+      debugPrint('${record.level.name}: ${record.time}: ${record.message}');
+    }
+
+    // Send to Dart DevTools / VM Service
     developer.log(
       record.message,
       time: record.time,
