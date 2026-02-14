@@ -1,6 +1,6 @@
 import 'package:latlong2/latlong.dart';
-import '../models/building.dart';
-import '../models/building_type.dart';
+import 'package:tu_world_map_app/models/building.dart';
+import 'package:tu_world_map_app/models/building_type.dart';
 
 class BuildingService {
   Future<List<Building>> getBuildings() async {
@@ -26,7 +26,7 @@ class BuildingService {
             LatLng(14.0738662, 100.6019814),
             LatLng(14.0738655, 100.6019153),
             LatLng(14.0743789, 100.60191),
-          ]
+          ],
         ],
       ),
       Building(
@@ -51,7 +51,7 @@ class BuildingService {
             LatLng(14.072281, 100.6025197),
             LatLng(14.0722799, 100.6024004),
             LatLng(14.0722791, 100.6023099),
-          ]
+          ],
         ],
       ),
       Building(
@@ -69,7 +69,7 @@ class BuildingService {
             LatLng(14.0704862, 100.6036849),
             LatLng(14.070485, 100.6030362),
             LatLng(14.0706898, 100.6030358),
-          ]
+          ],
         ],
       ),
       Building(
@@ -123,7 +123,7 @@ class BuildingService {
             LatLng(14.071691, 100.6082287),
             LatLng(14.0716957, 100.6084196),
             LatLng(14.071785, 100.6084208),
-          ]
+          ],
         ],
       ),
       Building(
@@ -166,7 +166,7 @@ class BuildingService {
             LatLng(14.0718394, 100.6025637),
             LatLng(14.0718413, 100.6020987),
             LatLng(14.0718417, 100.6020122),
-          ]
+          ],
         ],
       ),
       Building(
@@ -181,7 +181,7 @@ class BuildingService {
             LatLng(14.0692, 100.6053329),
             LatLng(14.069303, 100.6053324),
             LatLng(14.0693023, 100.6051987),
-          ]
+          ],
         ],
       ),
       Building(
@@ -201,7 +201,7 @@ class BuildingService {
             LatLng(14.0697891, 100.6047263),
             LatLng(14.0694981, 100.6047283),
             LatLng(14.0693924, 100.6047292),
-          ]
+          ],
         ],
       ),
       Building(
@@ -226,7 +226,7 @@ class BuildingService {
             LatLng(14.0670617, 100.6020586),
             LatLng(14.0671499, 100.6020581),
             LatLng(14.0671552, 100.6014034),
-          ]
+          ],
         ],
       ),
       Building(
@@ -263,7 +263,7 @@ class BuildingService {
             LatLng(14.0724783, 100.6075952),
             LatLng(14.0724547, 100.6075955),
             LatLng(14.072326, 100.6075971),
-          ]
+          ],
         ],
       ),
       Building(
@@ -290,7 +290,7 @@ class BuildingService {
             LatLng(14.071322, 100.6008917),
             LatLng(14.0713237, 100.6010277),
             LatLng(14.0714044, 100.6010266),
-          ]
+          ],
         ],
       ),
       Building(
@@ -305,7 +305,7 @@ class BuildingService {
             LatLng(14.0708039, 100.602088),
             LatLng(14.070803, 100.602574),
             LatLng(14.0705954, 100.6025787),
-          ]
+          ],
         ],
       ),
       Building(
@@ -329,7 +329,7 @@ class BuildingService {
             LatLng(14.068752, 100.607231),
             LatLng(14.0687821, 100.607231),
             LatLng(14.0692197, 100.6072309),
-          ]
+          ],
         ],
       ),
       Building(
@@ -350,7 +350,7 @@ class BuildingService {
             LatLng(14.0662124, 100.6059584),
             LatLng(14.0663145, 100.6059587),
             LatLng(14.0663156, 100.6057451),
-          ]
+          ],
         ],
       ),
       Building(
@@ -380,7 +380,7 @@ class BuildingService {
             LatLng(14.0659434, 100.6071894),
             LatLng(14.0659589, 100.6067251),
             LatLng(14.0659743, 100.6062608),
-          ]
+          ],
         ],
       ),
       Building(
@@ -395,7 +395,7 @@ class BuildingService {
             LatLng(14.0659951, 100.6061182),
             LatLng(14.0656753, 100.6061071),
             LatLng(14.0656976, 100.6054213),
-          ]
+          ],
         ],
       ),
       Building(
@@ -411,7 +411,7 @@ class BuildingService {
             LatLng(14.0678619, 100.6052193),
             LatLng(14.0678616, 100.6051303),
             LatLng(14.0681856, 100.6051293),
-          ]
+          ],
         ],
       ),
       Building(
@@ -426,7 +426,7 @@ class BuildingService {
             LatLng(14.0737743, 100.6134773),
             LatLng(14.0737733, 100.6133244),
             LatLng(14.07401, 100.6133227),
-          ]
+          ],
         ],
       ),
       Building(
@@ -446,7 +446,7 @@ class BuildingService {
             LatLng(14.0697953, 100.6003913),
             LatLng(14.0699351, 100.6003896),
             LatLng(14.0699402, 100.6008311),
-          ]
+          ],
         ],
       ),
       Building(
@@ -467,7 +467,7 @@ class BuildingService {
             LatLng(14.073683, 100.6009475),
             LatLng(14.073683, 100.6009355),
             LatLng(14.073683, 100.600892),
-          ]
+          ],
         ],
       ),
       Building(
@@ -502,7 +502,7 @@ class BuildingService {
             LatLng(14.0664078, 100.6036283),
             LatLng(14.0664629, 100.6034892),
             LatLng(14.0664623, 100.6033607),
-          ]
+          ],
         ],
       ),
       Building(
@@ -525,7 +525,7 @@ class BuildingService {
             LatLng(14.073862, 100.5970458),
             LatLng(14.0736196, 100.5968974),
             LatLng(14.0735452, 100.5970358),
-          ]
+          ],
         ],
       ),
       Building(
@@ -546,7 +546,7 @@ class BuildingService {
             LatLng(14.0649912, 100.6036375),
             LatLng(14.0650116, 100.6034391),
             LatLng(14.0651414, 100.6034538),
-          ]
+          ],
         ],
       ),
       Building(
@@ -561,7 +561,7 @@ class BuildingService {
             LatLng(14.0651873, 100.5994634),
             LatLng(14.0651792, 100.5999998),
             LatLng(14.0648166, 100.5999939),
-          ]
+          ],
         ],
       ),
       Building(
@@ -578,7 +578,7 @@ class BuildingService {
             LatLng(14.0668802, 100.6097573),
             LatLng(14.0668862, 100.6092983),
             LatLng(14.0672465, 100.6093033),
-          ]
+          ],
         ],
       ),
       Building(
@@ -593,7 +593,7 @@ class BuildingService {
             LatLng(14.0648273, 100.5992891),
             LatLng(14.0651968, 100.5992928),
             LatLng(14.0652018, 100.598742),
-          ]
+          ],
         ],
       ),
       Building(
@@ -615,7 +615,7 @@ class BuildingService {
             LatLng(14.0723878, 100.6123296),
             LatLng(14.0724847, 100.6122636),
             LatLng(14.0729402, 100.6122918),
-          ]
+          ],
         ],
       ),
       Building(
@@ -631,7 +631,7 @@ class BuildingService {
             LatLng(14.074257, 100.6165919),
             LatLng(14.0742577, 100.6163889),
             LatLng(14.0751837, 100.616392),
-          ]
+          ],
         ],
       ),
       Building(
@@ -647,7 +647,7 @@ class BuildingService {
             LatLng(14.0732234, 100.6110529),
             LatLng(14.0732282, 100.6107269),
             LatLng(14.0738813, 100.610739),
-          ]
+          ],
         ],
       ),
       Building(
@@ -666,7 +666,7 @@ class BuildingService {
             LatLng(14.073132, 100.6136311),
             LatLng(14.0731788, 100.613631),
             LatLng(14.0734817, 100.6136299),
-          ]
+          ],
         ],
       ),
       Building(
@@ -691,7 +691,7 @@ class BuildingService {
             LatLng(14.0726, 100.6145717),
             LatLng(14.0726033, 100.614748),
             LatLng(14.0727674, 100.6147448),
-          ]
+          ],
         ],
       ),
       Building(
@@ -712,7 +712,7 @@ class BuildingService {
             LatLng(14.0727535, 100.614411),
             LatLng(14.0726814, 100.61441),
             LatLng(14.0726828, 100.6143056),
-          ]
+          ],
         ],
       ),
       Building(
@@ -729,7 +729,7 @@ class BuildingService {
             LatLng(14.0704917, 100.6039244),
             LatLng(14.0706973, 100.6039227),
             LatLng(14.070696, 100.603766),
-          ]
+          ],
         ],
       ),
       Building(
@@ -744,7 +744,7 @@ class BuildingService {
             LatLng(14.0648461, 100.6046134),
             LatLng(14.0648112, 100.6044556),
             LatLng(14.065077, 100.604393),
-          ]
+          ],
         ],
       ),
       Building(
@@ -762,7 +762,7 @@ class BuildingService {
             LatLng(14.0650753, 100.604069),
             LatLng(14.065083, 100.6041622),
             LatLng(14.0649465, 100.6041741),
-          ]
+          ],
         ],
       ),
       Building(
@@ -779,7 +779,7 @@ class BuildingService {
             LatLng(14.0670501, 100.6055264),
             LatLng(14.0670506, 100.6054512),
             LatLng(14.067213, 100.6054522),
-          ]
+          ],
         ],
       ),
       Building(
@@ -811,7 +811,7 @@ class BuildingService {
             LatLng(14.067314, 100.6047442),
             LatLng(14.0673724, 100.6045995),
             LatLng(14.0673718, 100.604471),
-          ]
+          ],
         ],
       ),
       Building(
@@ -844,7 +844,7 @@ class BuildingService {
             LatLng(14.0668647, 100.6041979),
             LatLng(14.066923, 100.6040533),
             LatLng(14.0669225, 100.6039248),
-          ]
+          ],
         ],
       ),
       Building(
@@ -859,7 +859,7 @@ class BuildingService {
             LatLng(14.0658278, 100.60437),
             LatLng(14.0661073, 100.6043576),
             LatLng(14.0661109, 100.6044454),
-          ]
+          ],
         ],
       ),
       Building(
@@ -877,7 +877,7 @@ class BuildingService {
             LatLng(14.0707818, 100.6032659),
             LatLng(14.0707814, 100.6030393),
             LatLng(14.0710578, 100.6030388),
-          ]
+          ],
         ],
       ),
       Building(
@@ -892,7 +892,7 @@ class BuildingService {
             LatLng(14.0705047, 100.602572),
             LatLng(14.070392, 100.6025732),
             LatLng(14.0703902, 100.6023979),
-          ]
+          ],
         ],
       ),
       Building(
@@ -914,7 +914,7 @@ class BuildingService {
             LatLng(14.072575, 100.6040668),
             LatLng(14.0726179, 100.6040663),
             LatLng(14.0726747, 100.6040656),
-          ]
+          ],
         ],
       ),
       Building(
@@ -946,7 +946,7 @@ class BuildingService {
             LatLng(14.0723274, 100.6049505),
             LatLng(14.0723277, 100.6048325),
             LatLng(14.0725928, 100.6048334),
-          ]
+          ],
         ],
       ),
       Building(
@@ -979,7 +979,7 @@ class BuildingService {
             LatLng(14.0732211, 100.6056381),
             LatLng(14.073221, 100.6055253),
             LatLng(14.0736645, 100.6055246),
-          ]
+          ],
         ],
       ),
       Building(
@@ -1006,7 +1006,7 @@ class BuildingService {
             LatLng(14.072313, 100.6061889),
             LatLng(14.0723113, 100.6056787),
             LatLng(14.0728863, 100.6056767),
-          ]
+          ],
         ],
       ),
       Building(
@@ -1021,7 +1021,7 @@ class BuildingService {
             LatLng(14.0701441, 100.5973896),
             LatLng(14.0701403, 100.5970715),
             LatLng(14.0702728, 100.5970698),
-          ]
+          ],
         ],
       ),
       Building(
@@ -1036,7 +1036,7 @@ class BuildingService {
             LatLng(14.0701455, 100.5986872),
             LatLng(14.0701443, 100.5985931),
             LatLng(14.0702562, 100.5985917),
-          ]
+          ],
         ],
       ),
       Building(
@@ -1052,7 +1052,7 @@ class BuildingService {
             LatLng(14.0703637, 100.5974201),
             LatLng(14.0703637, 100.5971361),
             LatLng(14.0704667, 100.5971361),
-          ]
+          ],
         ],
       ),
       Building(
@@ -1067,7 +1067,7 @@ class BuildingService {
             LatLng(14.0698699, 100.5975701),
             LatLng(14.0699049, 100.5974587),
             LatLng(14.0702294, 100.5974536),
-          ]
+          ],
         ],
       ),
       Building(
@@ -1083,7 +1083,7 @@ class BuildingService {
             LatLng(14.0708073, 100.5978805),
             LatLng(14.0708068, 100.5977504),
             LatLng(14.0711199, 100.5977462),
-          ]
+          ],
         ],
       ),
       Building(
@@ -1102,7 +1102,7 @@ class BuildingService {
             LatLng(14.0698394, 100.5987859),
             LatLng(14.0698379, 100.5986593),
             LatLng(14.0700651, 100.5986564),
-          ]
+          ],
         ],
       ),
       Building(
@@ -1123,7 +1123,7 @@ class BuildingService {
             LatLng(14.0704432, 100.59785),
             LatLng(14.0704386, 100.5974943),
             LatLng(14.0705408, 100.5974929),
-          ]
+          ],
         ],
       ),
       Building(
@@ -1143,7 +1143,7 @@ class BuildingService {
             LatLng(14.0694648, 100.605427),
             LatLng(14.0694648, 100.6053076),
             LatLng(14.0694645, 100.6048981),
-          ]
+          ],
         ],
       ),
       Building(
@@ -1160,7 +1160,7 @@ class BuildingService {
             LatLng(14.0719419, 100.6001794),
             LatLng(14.0720407, 100.6001789),
             LatLng(14.0721461, 100.6001784),
-          ]
+          ],
         ],
       ),
       Building(
@@ -1176,7 +1176,7 @@ class BuildingService {
             LatLng(14.0719394, 100.6001376),
             LatLng(14.071938, 100.5998038),
             LatLng(14.0721449, 100.5998029),
-          ]
+          ],
         ],
       ),
       Building(
@@ -1195,7 +1195,7 @@ class BuildingService {
             LatLng(14.0723138, 100.6000038),
             LatLng(14.0723133, 100.5997901),
             LatLng(14.0726345, 100.5997894),
-          ]
+          ],
         ],
       ),
       Building(
@@ -1216,7 +1216,7 @@ class BuildingService {
             LatLng(14.0719355, 100.6006251),
             LatLng(14.0720333, 100.6006247),
             LatLng(14.072136, 100.6006244),
-          ]
+          ],
         ],
       ),
       Building(
@@ -1237,7 +1237,7 @@ class BuildingService {
             LatLng(14.0724413, 100.6013495),
             LatLng(14.0724412, 100.6012538),
             LatLng(14.0724407, 100.6008382),
-          ]
+          ],
         ],
       ),
     ];

@@ -1,5 +1,5 @@
 import 'package:logging/logging.dart';
-import '../models/building.dart';
+import 'package:tu_world_map_app/models/building.dart';
 
 class RecentLocationService {
   final _log = Logger('RecentLocationService');

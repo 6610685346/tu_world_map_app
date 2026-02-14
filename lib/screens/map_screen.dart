@@ -47,6 +47,7 @@ class _MapScreenState extends State<MapScreen> {
     super.dispose();
   }
 
+  // TODO: Generate the style json file on the fly
   Future<void> _loadStyleJson() async {
     try {
       final jsonString = await rootBundle.loadString(

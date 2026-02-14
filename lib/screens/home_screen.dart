@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../services/recent_location_service.dart';
-import '../services/building_service.dart';
-import '../services/map_selection_service.dart';
-import '../models/building_type.dart';
-import '../models/building.dart';
+import 'package:tu_world_map_app/services/recent_location_service.dart';
+import 'package:tu_world_map_app/services/building_service.dart';
+import 'package:tu_world_map_app/services/map_selection_service.dart';
+import 'package:tu_world_map_app/models/building_type.dart';
+import 'package:tu_world_map_app/models/building.dart';
 import 'dart:math';
 import 'package:flutter/cupertino.dart';
 
