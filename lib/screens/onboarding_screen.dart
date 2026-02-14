@@ -71,11 +71,11 @@ class _TUWorldMapOnboardingState extends State<TUWorldMapOnboarding> {
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFFE65100), // Deep orange
+                    color: const Color(0xFF6D4C41), // Brighter brown
                     letterSpacing: 0.5,
                     shadows: [
                       Shadow(
-                        color: Colors.orange.withOpacity(0.3),
+                        color: Colors.red.withOpacity(0.2),
                         offset: const Offset(0, 2),
                         blurRadius: 4,
                       ),
@@ -128,8 +128,8 @@ class _TUWorldMapOnboardingState extends State<TUWorldMapOnboarding> {
                                   gradient: RadialGradient(
                                     colors: [
                                       const Color(
-                                        0xFFFF9800,
-                                      ).withOpacity(0.2), // Orange glow
+                                        0xFFEF5350,
+                                      ).withOpacity(0.2), // Red glow
                                       Colors.transparent,
                                     ],
                                   ),
@@ -137,7 +137,7 @@ class _TUWorldMapOnboardingState extends State<TUWorldMapOnboarding> {
                                 child: Icon(
                                   page.icon,
                                   size: 80,
-                                  color: const Color(0xFFFF6F00), // Warm orange
+                                  color: const Color(0xFFD32F2F), // Red
                                 ),
                               ),
                               const SizedBox(height: 32),
@@ -147,9 +147,7 @@ class _TUWorldMapOnboardingState extends State<TUWorldMapOnboarding> {
                                 style: const TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(
-                                    0xFFBF360C,
-                                  ), // Deep warm brown-orange
+                                  color: Color(0xFF3E2723), // Very dark brown
                                 ),
                                 textAlign: TextAlign.center,
                               ),
@@ -158,10 +156,8 @@ class _TUWorldMapOnboardingState extends State<TUWorldMapOnboarding> {
                               Text(
                                 page.description,
                                 textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: const Color(
-                                    0xFF6D4C41,
-                                  ).withOpacity(0.9), // Warm brown
+                                style: const TextStyle(
+                                  color: Color(0xFF5D4037), // Dark warm brown
                                   fontSize: 14,
                                   height: 1.5,
                                 ),
@@ -180,15 +176,15 @@ class _TUWorldMapOnboardingState extends State<TUWorldMapOnboarding> {
                                   },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(
-                                      0xFFFF6F00,
-                                    ), // Warm orange
+                                      0xFFD32F2F,
+                                    ), // Red
                                     foregroundColor: Colors.white,
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 32,
                                       vertical: 16,
                                     ),
                                     elevation: 4,
-                                    shadowColor: Colors.orange.withOpacity(0.5),
+                                    shadowColor: Colors.red.withOpacity(0.5),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(24),
                                     ),
@@ -226,15 +222,15 @@ class _TUWorldMapOnboardingState extends State<TUWorldMapOnboarding> {
                       width: _currentPage == index ? 32 : 8,
                       decoration: BoxDecoration(
                         color: _currentPage == index
-                            ? const Color(0xFFFF6F00) // Warm orange
+                            ? const Color(0xFFD32F2F) // Red
                             : const Color(
-                                0xFFFFAB91,
-                              ).withOpacity(0.5), // Light warm peach
+                                0xFFFFCDD2,
+                              ).withOpacity(0.5), // Light red
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: _currentPage == index
                             ? [
                                 BoxShadow(
-                                  color: Colors.orange.withOpacity(0.4),
+                                  color: Colors.red.withOpacity(0.4),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),

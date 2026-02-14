@@ -50,8 +50,24 @@ class _SearchScreenState extends State<SearchScreen> {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: ChoiceChip(
-        label: Text(type.displayName),
+        label: Text(
+          type.displayName,
+          style: TextStyle(
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected ? Colors.white : const Color(0xFF3E2723),
+          ),
+        ),
         selected: isSelected,
+        selectedColor: const Color(0xFFD32F2F), // Red
+        backgroundColor: Colors.white.withOpacity(0.7),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: isSelected
+                ? const Color(0xFFD32F2F)
+                : const Color(0xFFFFCDD2),
+          ),
+        ),
         onSelected: (_) => _filterByType(type),
       ),
     );
@@ -71,16 +87,37 @@ class _SearchScreenState extends State<SearchScreen> {
         children: [
           const Text(
             "Recent Searches",
-            style: TextStyle(fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF3E2723), // Very dark brown
+              fontSize: 16,
+            ),
           ),
           const SizedBox(height: 8),
           ...history.map((query) {
-            return ListTile(
-              leading: const Icon(Icons.history),
-              title: Text(query),
-              onTap: () {
-                _search(query);
-              },
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              color: Colors.white.withOpacity(0.7),
+              elevation: 1,
+              shadowColor: Colors.red.withOpacity(0.1),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ListTile(
+                leading: const Icon(
+                  Icons.history,
+                  color: Color(0xFFD32F2F), // Red
+                ),
+                title: Text(
+                  query,
+                  style: const TextStyle(
+                    color: Color(0xFF3E2723), // Dark brown
+                  ),
+                ),
+                onTap: () {
+                  _search(query);
+                },
+              ),
             );
           }),
         ],
@@ -118,107 +155,194 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Search')),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: TextField(
-                    onChanged: _search,
-                    onSubmitted: (value) {
-                      historyService.add(value);
-                      setState(() {});
-                    },
-                    decoration: const InputDecoration(
-                      hintText: "Search building...",
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-
-                //Filter Chips
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(
-                    children: BuildingType.values.map((type) {
-                      return _buildFilterChip(type);
-                    }).toList(),
-                  ),
-                ),
-
-                if (currentQuery.isEmpty) _buildHistorySection(),
-
-                // Results List
-                if (currentQuery.isNotEmpty)
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: filteredBuildings.length,
-                      itemBuilder: (context, index) {
-                        final building = filteredBuildings[index];
-
-                        return Card(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          child: ListTile(
-                            leading: Image.network(
-                              building.imageUrl,
-                              width: 50,
-                              height: 50,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Icon(
-                                  Icons.image_not_supported,
-                                  size: 40,
-                                  color: Colors.grey,
-                                );
-                              },
-                            ),
-                            title: Text(building.name),
-                            subtitle: Text(building.type.displayName),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: Icon(
-                                    building.isFavorite
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      building.isFavorite =
-                                          !building.isFavorite;
-                                    });
-                                  },
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.location_on),
-                                  onPressed: () {
-                                    recentService.add(building);
-                                    MapSelectionService().select(building);
-                                    setState(() {
-                                      currentQuery = '';
-                                    });
-                                    widget.onTabChange(1);
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
+      appBar: AppBar(
+        title: const Text(
+          'Search',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF6D4C41), // Brighter brown
+          ),
+        ),
+        backgroundColor: const Color(0xFFFFFBF5), // Almost white with warm hint
+        elevation: 0,
+      ),
+      body: Container(
+        // Subtle warm gradient background
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFFFFFBF5), // Almost white with warm hint
+              const Color(0xFFFFF8F0), // Very light cream
+              const Color(0xFFFFF3E8), // Subtle warm white
+            ],
+          ),
+        ),
+        child: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: TextField(
+                      onChanged: _search,
+                      onSubmitted: (value) {
+                        historyService.add(value);
+                        setState(() {});
                       },
+                      style: const TextStyle(
+                        color: Color(0xFF3E2723), // Dark brown
+                      ),
+                      decoration: InputDecoration(
+                        hintText: "Search building...",
+                        hintStyle: TextStyle(
+                          color: const Color(0xFF3E2723).withOpacity(0.5),
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          color: Color(0xFFD32F2F), // Red
+                        ),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.8),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFFFCDD2), // Light red
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFFFCDD2), // Light red
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFD32F2F), // Red
+                            width: 2,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-              ],
-            ),
+
+                  //Filter Chips
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      children: BuildingType.values.map((type) {
+                        return _buildFilterChip(type);
+                      }).toList(),
+                    ),
+                  ),
+
+                  if (currentQuery.isEmpty) _buildHistorySection(),
+
+                  // Results List
+                  if (currentQuery.isNotEmpty)
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: filteredBuildings.length,
+                        itemBuilder: (context, index) {
+                          final building = filteredBuildings[index];
+
+                          return Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            color: Colors.white.withOpacity(0.9),
+                            elevation: 2,
+                            shadowColor: Colors.red.withOpacity(0.2),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ListTile(
+                              leading: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  building.imageUrl,
+                                  width: 50,
+                                  height: 50,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      width: 50,
+                                      height: 50,
+                                      decoration: BoxDecoration(
+                                        color: const Color(
+                                          0xFFFFCDD2,
+                                        ).withOpacity(0.3),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(
+                                        Icons.image_not_supported,
+                                        size: 30,
+                                        color: Color(0xFFD32F2F),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              title: Text(
+                                building.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF3E2723), // Very dark brown
+                                ),
+                              ),
+                              subtitle: Text(
+                                building.type.displayName,
+                                style: const TextStyle(
+                                  color: Color(0xFF5D4037), // Dark warm brown
+                                ),
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: Icon(
+                                      building.isFavorite
+                                          ? Icons.favorite
+                                          : Icons.favorite_border,
+                                      color: const Color(0xFFD32F2F), // Red
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        building.isFavorite =
+                                            !building.isFavorite;
+                                      });
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.location_on,
+                                      color: Color(0xFFD32F2F), // Red
+                                    ),
+                                    onPressed: () {
+                                      recentService.add(building);
+                                      MapSelectionService().select(building);
+                                      setState(() {
+                                        currentQuery = '';
+                                      });
+                                      widget.onTabChange(1);
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+      ),
     );
   }
 }

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:logging/logging.dart';
 
 import 'package:tu_world_map_app/models/building.dart';
+import 'package:tu_world_map_app/models/building_type.dart';
 import 'package:tu_world_map_app/services/building_service.dart';
 import 'package:tu_world_map_app/services/map_selection_service.dart';
 import 'package:tu_world_map_app/services/navigation_service.dart';
@@ -194,18 +195,24 @@ class _MapScreenState extends State<MapScreen> {
         maplibre.GeojsonSourceProperties(data: geoJson),
       );
 
-      /// Add fill layer (use CSS color strings; opacity is controlled by `fillOpacity`)
+      /// Add fill layer with warm red color
       await mapController.addLayer(
         sourceId,
         fillLayerId,
-        maplibre.FillLayerProperties(fillColor: '#1f78b4', fillOpacity: 0.3),
+        maplibre.FillLayerProperties(
+          fillColor: '#D32F2F', // Red
+          fillOpacity: 0.4,
+        ),
       );
 
-      /// Add stroke layer
+      /// Add stroke layer with red
       await mapController.addLayer(
         sourceId,
         strokeLayerId,
-        maplibre.LineLayerProperties(lineColor: '#1f78b4', lineWidth: 2),
+        maplibre.LineLayerProperties(
+          lineColor: '#B71C1C', // Dark red
+          lineWidth: 2.5,
+        ),
       );
     } catch (e, stackTrace) {
       _log.severe('Error adding building source', e, stackTrace);
@@ -244,24 +251,167 @@ class _MapScreenState extends State<MapScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Campus Map')),
+      appBar: AppBar(
+        title: const Text(
+          'Campus Map',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF6D4C41), // Brighter brown
+          ),
+        ),
+        backgroundColor: const Color(0xFFFFFBF5), // Almost white with warm hint
+        elevation: 0,
+        centerTitle: true,
+        actions: [
+          // Current location button
+          IconButton(
+            icon: const Icon(
+              Icons.my_location,
+              color: Color(0xFFD32F2F), // Red
+            ),
+            tooltip: 'My Location',
+            onPressed: () async {
+              await _getCurrentLocation();
+              if (currentLocation != null) {
+                mapController.animateCamera(
+                  maplibre.CameraUpdate.newLatLngZoom(
+                    maplibre.LatLng(
+                      currentLocation!.latitude,
+                      currentLocation!.longitude,
+                    ),
+                    17,
+                  ),
+                );
+              }
+            },
+          ),
+        ],
+      ),
       body: isLoading || styleJson == null
-          ? const Center(child: CircularProgressIndicator())
-          : maplibre.MapLibreMap(
-              styleString: styleJson!,
-              onMapCreated: _onMapCreated,
-              onStyleLoadedCallback: _onStyleLoaded,
-              initialCameraPosition: const maplibre.CameraPosition(
-                target: maplibre.LatLng(14.0683, 100.6034),
-                zoom: 14,
+          ? Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    const Color(0xFFFFFBF5), // Almost white with warm hint
+                    const Color(0xFFFFF8F0), // Very light cream
+                    const Color(0xFFFFF3E8), // Subtle warm white
+                  ],
+                ),
               ),
-              minMaxZoomPreference: const maplibre.MinMaxZoomPreference(0, 24),
-              trackCameraPosition: true,
-              scrollGesturesEnabled: true,
-              zoomGesturesEnabled: true,
-              tiltGesturesEnabled: true,
-              rotateGesturesEnabled: true,
-              myLocationEnabled: !kIsWeb,
+              child: const Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFFD32F2F), // Red
+                ),
+              ),
+            )
+          : Stack(
+              children: [
+                maplibre.MapLibreMap(
+                  styleString: styleJson!,
+                  onMapCreated: _onMapCreated,
+                  onStyleLoadedCallback: _onStyleLoaded,
+                  initialCameraPosition: const maplibre.CameraPosition(
+                    target: maplibre.LatLng(14.0683, 100.6034),
+                    zoom: 14,
+                  ),
+                  minMaxZoomPreference: const maplibre.MinMaxZoomPreference(
+                    0,
+                    24,
+                  ),
+                  trackCameraPosition: true,
+                  scrollGesturesEnabled: true,
+                  zoomGesturesEnabled: true,
+                  tiltGesturesEnabled: true,
+                  rotateGesturesEnabled: true,
+                  myLocationEnabled: !kIsWeb,
+                ),
+                // Selected building info card
+                if (selectedBuildingId != null)
+                  Positioned(
+                    bottom: 16,
+                    left: 16,
+                    right: 16,
+                    child: Card(
+                      elevation: 4,
+                      shadowColor: Colors.red.withOpacity(0.3),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      color: Colors.white.withOpacity(0.95),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFCDD2).withOpacity(0.5),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.location_city,
+                                color: Color(0xFFD32F2F),
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    buildings
+                                        .firstWhere(
+                                          (b) => b.id == selectedBuildingId,
+                                        )
+                                        .name,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(
+                                        0xFF3E2723,
+                                      ), // Very dark brown
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    buildings
+                                        .firstWhere(
+                                          (b) => b.id == selectedBuildingId,
+                                        )
+                                        .type
+                                        .displayName,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: const Color(
+                                        0xFF5D4037,
+                                      ).withOpacity(0.8),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.close,
+                                color: Color(0xFF5D4037),
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  selectedBuildingId = null;
+                                });
+                                selectionService.clear();
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
     );
   }
