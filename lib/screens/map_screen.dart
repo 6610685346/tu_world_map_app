@@ -118,6 +118,9 @@ class _MapScreenState extends State<MapScreen> {
       selectedBuildingId = selected.id;
     });
 
+    // Update the selected building highlight on map
+    _updateSelectedBuilding();
+
     // Animate camera to selected building
     Future.delayed(const Duration(milliseconds: 100), () {
       try {
@@ -185,7 +188,7 @@ class _MapScreenState extends State<MapScreen> {
 
       final geoJson = {'type': 'FeatureCollection', 'features': features};
 
-      /// Add source (use app-scoped id to avoid colliding with style-defined layers)
+      /// Add source for all buildings
       const String sourceId = 'app-buildings';
       const String fillLayerId = 'app-buildings-fill';
       const String strokeLayerId = 'app-buildings-stroke';
@@ -195,28 +198,105 @@ class _MapScreenState extends State<MapScreen> {
         maplibre.GeojsonSourceProperties(data: geoJson),
       );
 
-      /// Add fill layer with warm red color
+      /// Add fill layer - invisible for non-selected buildings
       await mapController.addLayer(
         sourceId,
         fillLayerId,
         maplibre.FillLayerProperties(
-          fillColor: '#D32F2F', // Red
-          fillOpacity: 0.4,
+          fillColor: '#90A4AE', // Neutral blue-gray (not visible)
+          fillOpacity: 0, // Invisible
         ),
       );
 
-      /// Add stroke layer with red
+      /// Add stroke layer - invisible for non-selected buildings
       await mapController.addLayer(
         sourceId,
         strokeLayerId,
         maplibre.LineLayerProperties(
-          lineColor: '#B71C1C', // Dark red
-          lineWidth: 2.5,
+          lineColor: '#607D8B', // Dark blue-gray (not visible)
+          lineWidth: 0, // Invisible
+        ),
+      );
+
+      /// Add separate source and layers for selected building (initially empty)
+      const String selectedSourceId = 'app-selected-building';
+      const String selectedFillLayerId = 'app-selected-building-fill';
+      const String selectedStrokeLayerId = 'app-selected-building-stroke';
+
+      await mapController.addSource(
+        selectedSourceId,
+        maplibre.GeojsonSourceProperties(
+          data: {'type': 'FeatureCollection', 'features': []},
+        ),
+      );
+
+      /// Add fill layer for selected building with red color
+      await mapController.addLayer(
+        selectedSourceId,
+        selectedFillLayerId,
+        maplibre.FillLayerProperties(
+          fillColor: '#D32F2F', // Red for selected
+          fillOpacity: 0.5,
+        ),
+      );
+
+      /// Add stroke layer for selected building with dark red
+      await mapController.addLayer(
+        selectedSourceId,
+        selectedStrokeLayerId,
+        maplibre.LineLayerProperties(
+          lineColor: '#B71C1C', // Dark red for selected
+          lineWidth: 3,
         ),
       );
     } catch (e, stackTrace) {
       _log.severe('Error adding building source', e, stackTrace);
       rethrow;
+    }
+  }
+
+  Future<void> _updateSelectedBuilding() async {
+    try {
+      if (selectedBuildingId == null) {
+        // Clear selected building layer
+        await mapController.setGeoJsonSource('app-selected-building', {
+          'type': 'FeatureCollection',
+          'features': [],
+        });
+        return;
+      }
+
+      // Find the selected building
+      final selectedBuilding = buildings.firstWhere(
+        (b) => b.id == selectedBuildingId,
+      );
+
+      // Create GeoJSON for selected building only
+      final features = <Map<String, dynamic>>[];
+      for (final polygon in selectedBuilding.polygons) {
+        features.add({
+          'type': 'Feature',
+          'properties': {
+            'id': selectedBuilding.id,
+            'name': selectedBuilding.name,
+          },
+          'geometry': {
+            'type': 'Polygon',
+            'coordinates': [
+              polygon
+                  .map((point) => [point.longitude, point.latitude])
+                  .toList(),
+            ],
+          },
+        });
+      }
+
+      final geoJson = {'type': 'FeatureCollection', 'features': features};
+
+      // Update selected building source
+      await mapController.setGeoJsonSource('app-selected-building', geoJson);
+    } catch (e, stackTrace) {
+      _log.severe('Error updating selected building', e, stackTrace);
     }
   }
 
@@ -403,6 +483,7 @@ class _MapScreenState extends State<MapScreen> {
                                 setState(() {
                                   selectedBuildingId = null;
                                 });
+                                _updateSelectedBuilding();
                                 selectionService.clear();
                               },
                             ),

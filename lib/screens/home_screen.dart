@@ -42,127 +42,190 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFfff6ea),
       // ส่วนหัวของ App
       appBar: AppBar(
-        backgroundColor: const Color(0xFFfff6ea),
+        backgroundColor: const Color(0xFFFFFBF5), // Almost white with warm hint
+        elevation: 0,
+        toolbarHeight: 90,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
-
-          children: const [
+          children: [
             Text(
               'TU World Map',
-              style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF6D4C41),
+              ),
             ),
             Text(
               'Welcome back! Where would you like to go today?',
-              style: TextStyle(fontSize: 14, color: Color(0xff7a7a7a)),
+              style: TextStyle(fontSize: 14, color: Color(0xFF5D4037)),
             ),
           ],
         ),
       ),
 
       // ส่วน body ของ App
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-
-            // เนื้อหาในส่วน body
-            children: [
-              const SizedBox(height: 10),
-              const Text(
-                "Quick Actions",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-
-              Row(
-                children: [
-                  /// View Map Button
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        widget.onTabChange(1); // Map tab index
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFE60012), // เปลี่ยนสีปุ่ม
-                        foregroundColor: Colors.white, // สีตัวอักษร + icon
-                        padding: const EdgeInsets.symmetric(vertical: 30),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16), // ขอบมน
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(CupertinoIcons.location_solid, size: 28),
-                          SizedBox(height: 6),
-                          Text("View Map"),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 16),
-
-                  /// Search Button
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        widget.onTabChange(2); // Search tab index
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFffbe42),
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 30),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16), // ขอบมน
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(Icons.search, size: 28),
-                          SizedBox(height: 6),
-                          Text("Search"),
-                        ],
-                      ),
-                    ),
-                  ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  const Color(0xFFFFFBF5), // Almost white with warm hint
+                  const Color(0xFFFFF8F0), // Very light cream
+                  const Color(0xFFFFF3E8), // Subtle warm white
                 ],
-
-                /// View Map Button
               ),
+            ),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight:
+                        constraints.maxHeight - 32, // Account for padding
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
 
-              const SizedBox(height: 30),
+                    // เนื้อหาในส่วน body
+                    children: [
+                      const Text(
+                        "Quick Actions",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF3E2723), // Very dark brown
+                        ),
+                      ),
+                      const SizedBox(height: 10),
 
-              /// Recent Locations
-              const Text(
-                "Recent Locations",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      Row(
+                        children: [
+                          /// View Map Button
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                widget.onTabChange(1); // Map tab index
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFD32F2F), // Red
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 30,
+                                ),
+                                elevation: 3,
+                                shadowColor: Colors.red.withOpacity(0.3),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(CupertinoIcons.location_solid, size: 28),
+                                  SizedBox(height: 6),
+                                  Text(
+                                    "View Map",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(width: 16),
+
+                          /// Search Button
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                widget.onTabChange(2); // Search tab index
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(
+                                  0xFFFF9800,
+                                ), // Orange
+                                foregroundColor: Color.fromARGB(
+                                  255,
+                                  65,
+                                  45,
+                                  35,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 30,
+                                ),
+                                elevation: 3,
+                                shadowColor: Colors.orange.withOpacity(0.3),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(Icons.search, size: 28),
+                                  SizedBox(height: 6),
+                                  Text(
+                                    "Search",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+
+                        /// View Map Button
+                      ),
+
+                      const SizedBox(height: 30),
+
+                      /// Recent Locations
+                      const Text(
+                        "Recent Locations",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF3E2723), // Very dark brown
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      RecentLocationsSection(onTabChange: widget.onTabChange),
+
+                      const SizedBox(height: 30),
+
+                      /// Popular Locations
+                      const Text(
+                        "Popular Locations",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF3E2723), // Very dark brown
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      PopularLocationsSection(onTabChange: widget.onTabChange),
+                    ],
+                  ),
+                ),
               ),
-
-              const SizedBox(height: 10),
-
-              RecentLocationsSection(onTabChange: widget.onTabChange),
-
-              const SizedBox(height: 30),
-
-              /// Popular Locations
-              const Text(
-                "Popular Locations",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 10),
-
-              PopularLocationsSection(onTabChange: widget.onTabChange),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -189,15 +252,33 @@ class _RecentLocationsSectionState extends State<RecentLocationsSection> {
     final List<Building> latestThree = recent.take(3).toList();
 
     if (recent.isEmpty) {
-      return const Text("No recent locations.");
+      return const Text(
+        "No recent locations.",
+        style: TextStyle(color: Color(0xFF3E2723)),
+      );
     }
 
     return Column(
       children: latestThree.map((building) {
         return Card(
+          color: Colors.white.withOpacity(0.9),
+          elevation: 2,
+          shadowColor: Colors.red.withOpacity(0.2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: ListTile(
-            leading: const Icon(Icons.history),
-            title: Text(building.name),
+            leading: const Icon(
+              Icons.history,
+              color: Color(0xFFD32F2F), // Red
+            ),
+            title: Text(
+              building.name,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF3E2723), // Very dark brown
+              ),
+            ),
             onTap: () {
               MapSelectionService().select(building);
               widget.onTabChange(1); // open Map tab
@@ -242,16 +323,39 @@ class _PopularLocationsSectionState extends State<PopularLocationsSection> {
   @override
   Widget build(BuildContext context) {
     if (popular.isEmpty) {
-      return const Text("No popular locations.");
+      return const Text(
+        "No popular locations.",
+        style: TextStyle(color: Color(0xFF3E2723)),
+      );
     }
 
     return Column(
       children: popular.map((building) {
         return Card(
+          color: Colors.white.withOpacity(0.9),
+          elevation: 2,
+          shadowColor: Colors.red.withOpacity(0.2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: ListTile(
-            leading: const Icon(Icons.location_on),
-            title: Text(building.name),
-            subtitle: Text(building.type.displayName),
+            leading: const Icon(
+              Icons.location_on,
+              color: Color(0xFFD32F2F), // Red
+            ),
+            title: Text(
+              building.name,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF3E2723), // Very dark brown
+              ),
+            ),
+            subtitle: Text(
+              building.type.displayName,
+              style: const TextStyle(
+                color: Color(0xFF5D4037), // Warm brown
+              ),
+            ),
             onTap: () {
               recentService.add(building);
               MapSelectionService().select(building);
