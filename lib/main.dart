@@ -27,7 +27,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
       ),
       initialRoute: '/',
-      home: const OnboardingScreen(),
+      home: const TUWorldMapOnboarding(),
     );
   }
 }
