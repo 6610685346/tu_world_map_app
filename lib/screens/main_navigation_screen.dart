@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+
 import 'home_screen.dart';
 import 'map_screen.dart';
 import 'search_screen.dart';
 import 'favorite_screen.dart';
 import 'settings_screen.dart';
-import 'package:flutter/cupertino.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -47,7 +48,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         unselectedItemColor: Color(0xff765a33),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(CupertinoIcons.location_solid), label: "Map"),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.location_solid),
+            label: "Map",
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.search), label: "Search"),
           BottomNavigationBarItem(
             icon: Icon(Icons.favorite),
