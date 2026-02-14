@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'screens/onboarding_screen.dart';
-import 'dart:developer' as developer;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,18 +11,6 @@ void main() {
     if (kDebugMode) {
       debugPrint('${record.level.name}: ${record.time}: ${record.message}');
     }
-
-    // Send to Dart DevTools / VM Service
-    developer.log(
-      record.message,
-      time: record.time,
-      sequenceNumber: record.sequenceNumber,
-      level: record.level.value,
-      name: record.loggerName,
-      zone: record.zone,
-      error: record.error,
-      stackTrace: record.stackTrace,
-    );
   });
   runApp(const MyApp());
 }

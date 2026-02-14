@@ -34,7 +34,7 @@ dependencies:
   latlong2:
   geolocator:
   cupertino_icons:
-  logging: ^1.3.0 
+  logging: 
 
 dev_dependencies:
   flutter_test:
@@ -45,5 +45,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/styles/simple_shortbread.json
-  fonts:
-    - family: OpenSans
+    - assets/styles/versatiles-colorful.json
