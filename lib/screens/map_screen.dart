@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as maplibre;
 import 'package:latlong2/latlong.dart';
-import '../models/building.dart';
-import '../services/building_service.dart';
-import '../services/map_selection_service.dart';
-import '../services/navigation_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:logging/logging.dart';
+
+import 'package:tu_world_map_app/models/building.dart';
+import 'package:tu_world_map_app/services/building_service.dart';
+import 'package:tu_world_map_app/services/map_selection_service.dart';
+import 'package:tu_world_map_app/services/navigation_service.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -95,7 +96,7 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     Position position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
     );
 
     setState(() {
