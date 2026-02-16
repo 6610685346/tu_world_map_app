@@ -46,6 +46,7 @@ app.*.map.json
 
 # Flutter generated plugin registrant files
 **/generated_plugin_registrant.dart
+**/GeneratedPluginRegistrant.swift
 **/GeneratedPluginRegistrant.*
 **/generated_plugin_registrant.cc
 **/generated_plugin_registrant.h

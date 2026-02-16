@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/building.dart';
+import 'package:tu_world_map_app/models/building.dart';
 
 class MapSelectionService extends ChangeNotifier {
   static final MapSelectionService _instance = MapSelectionService._internal();

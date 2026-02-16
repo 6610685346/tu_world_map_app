@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import '../services/recent_location_service.dart';
-import '../services/building_service.dart';
-import '../services/map_selection_service.dart';
-import '../models/building_type.dart';
-import '../models/building.dart';
-import 'dart:math';
 import 'package:flutter/cupertino.dart';
+import 'package:tu_world_map_app/services/recent_location_service.dart';
+import 'package:tu_world_map_app/services/building_service.dart';
+import 'package:tu_world_map_app/services/map_selection_service.dart';
+import 'package:tu_world_map_app/models/building_type.dart';
+import 'package:tu_world_map_app/models/building.dart';
+import 'dart:math';
 
 class HomeScreen extends StatefulWidget {
   final Function(int) onTabChange;
@@ -42,119 +42,143 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFfff6ea),
-      // ส่วนหัวของ App
+      backgroundColor: const Color(0xFFFFFBF5),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFfff6ea),
-        title: Column(
+        backgroundColor: const Color(0xFFFFFBF5),
+        elevation: 0,
+        toolbarHeight: 90,
+        title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
-          
-          children: const [
-            Text('TU World Map', style:TextStyle(fontSize: 30, fontWeight: FontWeight.bold)), 
-            Text('Welcome back! Where would you like to go today?', style:TextStyle(fontSize: 14, color: Color(0xff7a7a7a)))
+          children: [
+            Text(
+              'TU World Map',
+              style: TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF6D4C41),
+              ),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Welcome back! Where would you like to go today?',
+              style: TextStyle(fontSize: 14, color: Color(0xFF5D4037)),
+            ),
           ],
-
-        )
+        ),
       ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFFFFBF5), Color(0xFFFFF8F0), Color(0xFFFFF3E8)],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Quick Actions",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF3E2723),
+                  ),
+                ),
+                const SizedBox(height: 16),
 
-      // ส่วน body ของ App
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-
-            // เนื้อหาในส่วน body
-            children: [
-              const SizedBox(height: 10),
-                const Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-
-              Row(
-                children: [
-                  /// View Map Button
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        widget.onTabChange(1); // Map tab index
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFE60012),   // เปลี่ยนสีปุ่ม
-                        foregroundColor: Colors.white,  // สีตัวอักษร + icon
-                        padding: const EdgeInsets.symmetric(vertical: 30),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16), // ขอบมน
-                        )
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min, 
-                        children: const [
-                          Icon(
-                            CupertinoIcons.location_solid,
-                            size: 28,
+                Row(
+                  children: [
+                    /// View Map
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => widget.onTabChange(1),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD32F2F),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 30),
+                          elevation: 3,
+                          shadowColor: Colors.red.withOpacity(0.3),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          SizedBox(height: 6),
-                          Text("View Map"),
-                        ],
+                        ),
+                        child: const Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(CupertinoIcons.location_solid, size: 28),
+                            SizedBox(height: 6),
+                            Text(
+                              "View Map",
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 16),
 
-                const SizedBox(width: 16),
-
-                /// Search Button
-                 Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      widget.onTabChange(2); // Search tab index
-                    },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFffbe42),
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 30),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16), // ขอบมน
-                        )
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min, 
-                        children: const [
-                          Icon(Icons.search, size: 28),
-                          SizedBox(height: 6),
-                          Text("Search"),
-                        ],
+                    /// Search
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => widget.onTabChange(2),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF9800),
+                          foregroundColor: const Color(0xFF3E2723),
+                          padding: const EdgeInsets.symmetric(vertical: 30),
+                          elevation: 3,
+                          shadowColor: Colors.orange.withOpacity(0.3),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.search, size: 28),
+                            SizedBox(height: 6),
+                            Text(
+                              "Search",
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
+                  ],
+                ),
+
+                const SizedBox(height: 40),
+
+                const Text(
+                  "Recent Locations",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF3E2723),
                   ),
-                ]
-                /// View Map Button
-              ),
+                ),
+                const SizedBox(height: 10),
+                RecentLocationsSection(onTabChange: widget.onTabChange),
 
-              const SizedBox(height: 30),
+                const SizedBox(height: 40),
 
-              /// Recent Locations
-              const Text(
-                "Recent Locations",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 10),
-
-              RecentLocationsSection(onTabChange: widget.onTabChange),
-
-              const SizedBox(height: 30),
-
-              /// Popular Locations
-              const Text(
-                "Popular Locations",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 10),
-
-              PopularLocationsSection(onTabChange: widget.onTabChange),
-            ],
+                const Text(
+                  "Popular Locations",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF3E2723),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                PopularLocationsSection(onTabChange: widget.onTabChange),
+              ],
+            ),
           ),
         ),
       ),
@@ -189,12 +213,24 @@ class _RecentLocationsSectionState extends State<RecentLocationsSection> {
     return Column(
       children: latestThree.map((building) {
         return Card(
+          color: Colors.white.withOpacity(0.9),
+          elevation: 2,
+          shadowColor: Colors.red.withOpacity(0.2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: ListTile(
-            leading: const Icon(Icons.history),
-            title: Text(building.name),
+            leading: const Icon(Icons.history, color: Color(0xFFD32F2F)),
+            title: Text(
+              building.name,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF3E2723),
+              ),
+            ),
             onTap: () {
               MapSelectionService().select(building);
-              widget.onTabChange(1); // open Map tab
+              widget.onTabChange(1);
             },
           ),
         );
@@ -202,7 +238,6 @@ class _RecentLocationsSectionState extends State<RecentLocationsSection> {
     );
   }
 }
-
 
 // Popular Location
 class PopularLocationsSection extends StatefulWidget {
@@ -243,15 +278,30 @@ class _PopularLocationsSectionState extends State<PopularLocationsSection> {
     return Column(
       children: popular.map((building) {
         return Card(
+          color: Colors.white.withOpacity(0.9),
+          elevation: 2,
+          shadowColor: Colors.red.withOpacity(0.2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: ListTile(
-            leading: const Icon(Icons.location_on),
-            title: Text(building.name),
-            subtitle: Text(building.type.displayName),
+            leading: const Icon(Icons.location_on, color: Color(0xFFD32F2F)),
+            title: Text(
+              building.name,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF3E2723),
+              ),
+            ),
+            subtitle: Text(
+              building.type.displayName,
+              style: const TextStyle(color: Color(0xFF5D4037)),
+            ),
             onTap: () {
               recentService.add(building);
               MapSelectionService().select(building);
               widget.onTabChange(1);
-            },  
+            },
           ),
         );
       }).toList(),

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import '../services/building_service.dart';
-import '../services/recent_location_service.dart';
-import '../models/building.dart';
-import '../services/search_history_service.dart';
-import '../services/map_selection_service.dart';
-import "../models/building_type.dart";
+import 'package:tu_world_map_app/services/building_service.dart';
+import 'package:tu_world_map_app/services/recent_location_service.dart';
+import 'package:tu_world_map_app/models/building.dart';
+import 'package:tu_world_map_app/services/search_history_service.dart';
+import 'package:tu_world_map_app/services/map_selection_service.dart';
+import "package:tu_world_map_app/models/building_type.dart";
 
 class SearchScreen extends StatefulWidget {
   final Function(int) onTabChange;
@@ -19,27 +19,106 @@ class _SearchScreenState extends State<SearchScreen> {
   final BuildingService buildingService = BuildingService();
   final RecentLocationService recentService = RecentLocationService();
   final SearchHistoryService historyService = SearchHistoryService();
+  final ScrollController _scrollController = ScrollController();
+
   String currentQuery = '';
   BuildingType? selectedType;
 
   List<Building> allBuildings = [];
   List<Building> filteredBuildings = [];
+  List<Building> displayedBuildings = [];
+
   bool isLoading = true;
+  bool isLoadingMore = false;
+
+  static const int _buildingsPerPage = 20;
+  int _currentPage = 0;
 
   @override
   void initState() {
     super.initState();
     _loadBuildings();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadMoreBuildings();
+    }
+  }
+
+  void _loadMoreBuildings() {
+    if (isLoadingMore || displayedBuildings.length >= filteredBuildings.length)
+      return;
+
+    setState(() => isLoadingMore = true);
+
+    Future.delayed(const Duration(milliseconds: 200), () {
+      setState(() {
+        _currentPage++;
+        final start = _currentPage * _buildingsPerPage;
+        final end = (start + _buildingsPerPage).clamp(
+          0,
+          filteredBuildings.length,
+        );
+
+        if (start < filteredBuildings.length) {
+          displayedBuildings.addAll(filteredBuildings.sublist(start, end));
+        }
+
+        isLoadingMore = false;
+      });
+    });
+  }
+
+  void _resetPagination() {
+    _currentPage = 0;
+    final end = _buildingsPerPage.clamp(0, filteredBuildings.length);
+    displayedBuildings = filteredBuildings.take(end).toList();
+  }
+
+  Future<void> _loadBuildings() async {
+    final data = await buildingService.getBuildings();
+    setState(() {
+      allBuildings = data;
+      filteredBuildings = data;
+      _resetPagination();
+      isLoading = false;
+    });
+  }
+
+  void _search(String query) {
+    currentQuery = query;
+    _applyFilters(query: query);
+  }
+
+  void _applyFilters({String query = ''}) {
+    setState(() {
+      filteredBuildings = allBuildings.where((building) {
+        final matchesSearch = building.name.toLowerCase().contains(
+          query.toLowerCase(),
+        );
+
+        final matchesType =
+            selectedType == null || building.type == selectedType;
+
+        return matchesSearch && matchesType;
+      }).toList();
+
+      _resetPagination();
+    });
   }
 
   void _filterByType(BuildingType type) {
     setState(() {
-      if (selectedType == type) {
-        selectedType = null; // toggle off
-      } else {
-        selectedType = type;
-      }
-
+      selectedType = selectedType == type ? null : type;
       _applyFilters(query: currentQuery);
     });
   }
@@ -52,171 +131,178 @@ class _SearchScreenState extends State<SearchScreen> {
       child: ChoiceChip(
         label: Text(type.displayName),
         selected: isSelected,
+        selectedColor: const Color(0xFFE60012),
+        labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black),
         onSelected: (_) => _filterByType(type),
       ),
     );
   }
 
-  Widget _buildHistorySection() {
-    final history = historyService.getHistory();
-
-    if (history.isEmpty) {
-      return const SizedBox();
-    }
-
-    return Padding(
-      padding: const EdgeInsets.all(12),
+  Widget _buildEmptyState() {
+    return Center(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Recent Searches",
-            style: TextStyle(fontWeight: FontWeight.bold),
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: const [
+          Icon(Icons.search_off, size: 64, color: Colors.grey),
+          SizedBox(height: 16),
+          Text(
+            "No buildings found",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 8),
-          ...history.map((query) {
-            return ListTile(
-              leading: const Icon(Icons.history),
-              title: Text(query),
-              onTap: () {
-                _search(query);
-              },
-            );
-          }),
+          SizedBox(height: 8),
+          Text("Try adjusting your search or filters"),
         ],
       ),
     );
   }
 
-  Future<void> _loadBuildings() async {
-    final data = await buildingService.getBuildings();
-    setState(() {
-      allBuildings = data;
-      filteredBuildings = data;
-      isLoading = false;
-    });
-  }
-
-  void _search(String query) {
-    currentQuery = query;
-
-    setState(() {
-      _applyFilters(query: query);
-    });
-  }
-
-  void _applyFilters({String query = ''}) {
-    filteredBuildings = allBuildings.where((building) {
-      final matchesSearch = building.name.toLowerCase().contains(
-        query.toLowerCase(),
-      );
-
-      final matchesType = selectedType == null || building.type == selectedType;
-
-      return matchesSearch && matchesType;
-    }).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Search')),
+      backgroundColor: const Color(0xFFFDF6F0),
+      appBar: AppBar(
+        title: const Text("Search"),
+        backgroundColor: const Color(0xFFFDF6F0),
+        elevation: 0,
+      ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
+                // Search Field
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: TextField(
                     onChanged: _search,
                     onSubmitted: (value) {
                       historyService.add(value);
-                      setState(() {});
                     },
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: "Search building...",
-                      border: OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.search),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 ),
 
-                //Filter Chips
+                // Filter Chips
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Row(
-                    children: BuildingType.values.map((type) {
-                      return _buildFilterChip(type);
-                    }).toList(),
+                    children: BuildingType.values
+                        .map((type) => _buildFilterChip(type))
+                        .toList(),
                   ),
                 ),
 
-                if (currentQuery.isEmpty) _buildHistorySection(),
+                const SizedBox(height: 8),
 
-                // Results List
-                if (currentQuery.isNotEmpty)
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: filteredBuildings.length,
-                      itemBuilder: (context, index) {
-                        final building = filteredBuildings[index];
-
-                        return Card(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          child: ListTile(
-                            leading: Image.network(
-                              building.imageUrl,
-                              width: 50,
-                              height: 50,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Icon(
-                                  Icons.image_not_supported,
-                                  size: 40,
-                                  color: Colors.grey,
-                                );
-                              },
-                            ),
-                            title: Text(building.name),
-                            subtitle: Text(building.type.displayName),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: Icon(
-                                    building.isFavorite
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      building.isFavorite =
-                                          !building.isFavorite;
-                                    });
-                                  },
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.location_on),
-                                  onPressed: () {
-                                    recentService.add(building);
-                                    MapSelectionService().select(building);
-                                    setState(() {
-                                      currentQuery = '';
-                                    });
-                                    widget.onTabChange(1);
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
+                // Result Count
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      "${filteredBuildings.length} building${filteredBuildings.length != 1 ? 's' : ''} found",
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
+                ),
+
+                const SizedBox(height: 8),
+
+                // Results
+                Expanded(
+                  child: filteredBuildings.isEmpty
+                      ? _buildEmptyState()
+                      : ListView.builder(
+                          controller: _scrollController,
+                          itemCount:
+                              displayedBuildings.length +
+                              (isLoadingMore ? 1 : 0),
+                          itemBuilder: (context, index) {
+                            if (index == displayedBuildings.length) {
+                              return const Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            }
+
+                            final building = displayedBuildings[index];
+
+                            return Card(
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              elevation: 3,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: ListTile(
+                                leading: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    building.imageUrl,
+                                    width: 50,
+                                    height: 50,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => const Icon(
+                                      Icons.image_not_supported,
+                                      size: 40,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                                title: Text(
+                                  building.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                subtitle: Text(building.type.displayName),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(
+                                        building.isFavorite
+                                            ? Icons.favorite
+                                            : Icons.favorite_border,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          building.isFavorite =
+                                              !building.isFavorite;
+                                        });
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.location_on),
+                                      onPressed: () {
+                                        recentService.add(building);
+                                        MapSelectionService().select(building);
+                                        widget.onTabChange(1);
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
               ],
             ),
     );

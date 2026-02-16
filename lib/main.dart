@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:logging/logging.dart';
 import 'screens/onboarding_screen.dart';
-import 'screens/home_screen.dart';
-import 'screens/search_screen.dart';
-import 'screens/favorite_screen.dart';
-import 'screens/map_screen.dart';
-import 'screens/main_navigation_screen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  Logger.root.level = Level.ALL; // defaults to Level.INFO
+  Logger.root.onRecord.listen((record) {
+    // Print to console in debug mode for visibility
+    if (kDebugMode) {
+      debugPrint('${record.level.name}: ${record.time}: ${record.message}');
+    }
+  });
   runApp(const MyApp());
 }
 
@@ -22,7 +27,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
       ),
       initialRoute: '/',
-      home: const OnboardingScreen(),
+      home: const TUWorldMapOnboarding(),
     );
   }
 }

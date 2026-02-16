@@ -1,4 +1,4 @@
-import '../models/building.dart';
+import 'package:tu_world_map_app/models/building.dart';
 
 class RecentLocationService {
   static final RecentLocationService _instance =
