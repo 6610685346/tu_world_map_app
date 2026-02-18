@@ -4,7 +4,7 @@ import 'building_type.dart';
 class Building {
   final String id;
   final String name;
-  final BuildingType type; //
+  final BuildingType type;
   final String imageUrl;
   bool isFavorite;
   final List<List<LatLng>> polygons;

@@ -33,7 +33,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       HomeScreen(onTabChange: _onItemTapped, currentIndex: _selectedIndex),
       const MapScreen(),
       SearchScreen(onTabChange: _onItemTapped),
-      const FavoriteScreen(),
+      FavoriteScreen(onTabChange: _onItemTapped),
       const SettingsScreen(),
     ];
 

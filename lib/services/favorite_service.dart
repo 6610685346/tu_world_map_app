@@ -1,27 +1,29 @@
+import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:tu_world_map_app/models/building.dart';
 
-class FavoriteService {
+class FavoriteService extends ChangeNotifier {
   final _log = Logger('FavoriteService');
+
   static final FavoriteService _instance = FavoriteService._internal();
 
-  factory FavoriteService() {
-    return _instance;
-  }
+  factory FavoriteService() => _instance;
 
   FavoriteService._internal();
 
   final List<Building> _favorites = [];
+  final Map<String, String> _customNames = {};
 
   void toggle(Building building) {
     if (isFavorite(building)) {
-      _log.info("REMOVING FAVORITE: ${building.name}");
       _favorites.removeWhere((b) => b.id == building.id);
+      _customNames.remove(building.id);
+      building.isFavorite = false;
     } else {
-      _log.info("ADDING FAVORITE: ${building.name}");
       _favorites.add(building);
+      building.isFavorite = true;
     }
-    _log.info("FAVORITES COUNT: ${_favorites.length}");
+    notifyListeners();
   }
 
   bool isFavorite(Building building) {
@@ -29,11 +31,22 @@ class FavoriteService {
   }
 
   void remove(Building building) {
-    _log.info("REMOVING FAVORITE: ${building.name}");
     _favorites.removeWhere((b) => b.id == building.id);
+    _customNames.remove(building.id);
+    building.isFavorite = false;
+    notifyListeners();
   }
 
   List<Building> getFavorites() {
     return List.unmodifiable(_favorites);
+  }
+
+  void setCustomName(String buildingId, String name) {
+    _customNames[buildingId] = name;
+    notifyListeners();
+  }
+
+  String getDisplayName(Building building) {
+    return _customNames[building.id] ?? building.name;
   }
 }

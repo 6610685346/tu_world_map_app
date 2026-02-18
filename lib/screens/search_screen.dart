@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:tu_world_map_app/services/building_service.dart';
-import 'package:tu_world_map_app/services/recent_location_service.dart';
 import 'package:tu_world_map_app/models/building.dart';
-import 'package:tu_world_map_app/services/search_history_service.dart';
+import 'package:tu_world_map_app/models/building_type.dart';
+import 'package:tu_world_map_app/screens/building_detail_screen.dart';
+import 'package:tu_world_map_app/services/building_service.dart';
 import 'package:tu_world_map_app/services/map_selection_service.dart';
-import "package:tu_world_map_app/models/building_type.dart";
+import 'package:tu_world_map_app/services/recent_location_service.dart';
+import 'package:tu_world_map_app/services/search_history_service.dart';
+import 'package:tu_world_map_app/services/favorite_service.dart';
 
 class SearchScreen extends StatefulWidget {
   final Function(int) onTabChange;
@@ -16,11 +18,14 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> {
+  // Services
   final BuildingService buildingService = BuildingService();
   final RecentLocationService recentService = RecentLocationService();
   final SearchHistoryService historyService = SearchHistoryService();
+
   final ScrollController _scrollController = ScrollController();
 
+  // State
   String currentQuery = '';
   BuildingType? selectedType;
 
@@ -33,6 +38,8 @@ class _SearchScreenState extends State<SearchScreen> {
 
   static const int _buildingsPerPage = 20;
   int _currentPage = 0;
+
+  // ================= INIT =================
 
   @override
   void initState() {
@@ -47,11 +54,23 @@ class _SearchScreenState extends State<SearchScreen> {
     super.dispose();
   }
 
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
-      _loadMoreBuildings();
-    }
+  // ================= DATA =================
+
+  Future<void> _loadBuildings() async {
+    final data = await buildingService.getBuildings();
+
+    setState(() {
+      allBuildings = data;
+      filteredBuildings = data;
+      _resetPagination();
+      isLoading = false;
+    });
+  }
+
+  void _resetPagination() {
+    _currentPage = 0;
+    final end = _buildingsPerPage.clamp(0, filteredBuildings.length);
+    displayedBuildings = filteredBuildings.take(end).toList();
   }
 
   void _loadMoreBuildings() {
@@ -63,6 +82,7 @@ class _SearchScreenState extends State<SearchScreen> {
     Future.delayed(const Duration(milliseconds: 200), () {
       setState(() {
         _currentPage++;
+
         final start = _currentPage * _buildingsPerPage;
         final end = (start + _buildingsPerPage).clamp(
           0,
@@ -78,21 +98,14 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
-  void _resetPagination() {
-    _currentPage = 0;
-    final end = _buildingsPerPage.clamp(0, filteredBuildings.length);
-    displayedBuildings = filteredBuildings.take(end).toList();
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadMoreBuildings();
+    }
   }
 
-  Future<void> _loadBuildings() async {
-    final data = await buildingService.getBuildings();
-    setState(() {
-      allBuildings = data;
-      filteredBuildings = data;
-      _resetPagination();
-      isLoading = false;
-    });
-  }
+  // ================= SEARCH & FILTER =================
 
   void _search(String query) {
     currentQuery = query;
@@ -123,6 +136,43 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
+  // ================= UI HELPERS =================
+
+  void _openBuildingDetail(Building building) async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.9,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          builder: (_, __) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFFFDF6F0),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: BuildingDetailScreen(
+                building: building,
+                onViewOnMap: () {
+                  Navigator.of(sheetContext).pop(true);
+                },
+              ),
+            );
+          },
+        );
+      },
+    ).then((result) {
+      if (result == true) {
+        recentService.add(building);
+        MapSelectionService().select(building);
+        widget.onTabChange(1);
+      }
+    });
+  }
+
   Widget _buildFilterChip(BuildingType type) {
     final isSelected = selectedType == type;
 
@@ -138,11 +188,69 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
+  Widget _buildBuildingCard(Building building) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        onTap: () => _openBuildingDetail(building),
+
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.network(
+            building.imageUrl,
+            width: 50,
+            height: 50,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const Icon(
+              Icons.image_not_supported,
+              size: 40,
+              color: Colors.grey,
+            ),
+          ),
+        ),
+
+        title: Text(
+          building.name,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+
+        subtitle: Text(building.type.displayName),
+
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: Icon(
+                building.isFavorite ? Icons.favorite : Icons.favorite_border,
+                color: Colors.red,
+              ),
+              onPressed: () {
+                setState(() {
+                  FavoriteService().toggle(building);
+                });
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.location_on),
+              onPressed: () {
+                recentService.add(building);
+                MapSelectionService().select(building);
+                widget.onTabChange(1);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
+        children: [
           Icon(Icons.search_off, size: 64, color: Colors.grey),
           SizedBox(height: 16),
           Text(
@@ -155,6 +263,8 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
     );
   }
+
+  // ================= BUILD =================
 
   @override
   Widget build(BuildContext context) {
@@ -174,9 +284,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   padding: const EdgeInsets.all(12),
                   child: TextField(
                     onChanged: _search,
-                    onSubmitted: (value) {
-                      historyService.add(value);
-                    },
+                    onSubmitted: (value) => historyService.add(value),
                     decoration: InputDecoration(
                       hintText: "Search building...",
                       prefixIcon: const Icon(Icons.search),
@@ -240,66 +348,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
                             final building = displayedBuildings[index];
 
-                            return Card(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              elevation: 3,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: ListTile(
-                                leading: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    building.imageUrl,
-                                    width: 50,
-                                    height: 50,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const Icon(
-                                      Icons.image_not_supported,
-                                      size: 40,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ),
-                                title: Text(
-                                  building.name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                subtitle: Text(building.type.displayName),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: Icon(
-                                        building.isFavorite
-                                            ? Icons.favorite
-                                            : Icons.favorite_border,
-                                        color: Colors.red,
-                                      ),
-                                      onPressed: () {
-                                        setState(() {
-                                          building.isFavorite =
-                                              !building.isFavorite;
-                                        });
-                                      },
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.location_on),
-                                      onPressed: () {
-                                        recentService.add(building);
-                                        MapSelectionService().select(building);
-                                        widget.onTabChange(1);
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
+                            return _buildBuildingCard(building);
                           },
                         ),
                 ),

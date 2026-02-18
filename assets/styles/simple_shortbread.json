@@ -1,0 +1,46 @@
+{
+    "version": 8,
+    "name": "Simple Shortbread",
+    "metadata": {
+        "maputnik:renderer": "mbgljs"
+    },
+    "sources": {
+        "shortbread": {
+            "type": "vector",
+            "tiles": [
+                "https://vector.openstreetmap.org/shortbread_v1/{z}/{x}/{y}.mvt"
+            ],
+            "minzoom": 0,
+            "maxzoom": 14,
+            "attribution": "© OpenStreetMap Contributors"
+        }
+    },
+    "layers": [
+        {
+            "id": "background",
+            "type": "background",
+            "paint": {
+                "background-color": "#f8f4f0"
+            }
+        },
+        {
+            "id": "land",
+            "type": "fill",
+            "source": "shortbread",
+            "source-layer": "land",
+            "paint": {
+                "fill-color": "#e0e0e0",
+                "fill-outline-color": "#aaaaaa"
+            }
+        },
+        {
+            "id": "water_polygons",
+            "type": "fill",
+            "source": "shortbread",
+            "source-layer": "water_polygons",
+            "paint": {
+                "fill-color": "#a0c8f0"
+            }
+        }
+    ]
+}
