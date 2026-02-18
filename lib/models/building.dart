@@ -17,4 +17,39 @@ class Building {
     required this.polygons,
     this.isFavorite = false,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'type': type.name,
+      'imageUrl': imageUrl,
+      'isFavorite': isFavorite,
+      'polygons': polygons
+          .map((polygon) =>
+              polygon.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList())
+          .toList(),
+    };
+  }
+
+  factory Building.fromJson(Map<String, dynamic> json) {
+    return Building(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      type: BuildingType.values.firstWhere(
+        (e) => e.name == json['type'],
+        orElse: () => BuildingType.other,
+      ),
+      imageUrl: json['imageUrl'] as String,
+      isFavorite: json['isFavorite'] as bool? ?? false,
+      polygons: (json['polygons'] as List)
+          .map((polygon) => (polygon as List)
+              .map((p) => LatLng(
+                    (p['lat'] as num).toDouble(),
+                    (p['lng'] as num).toDouble(),
+                  ))
+              .toList())
+          .toList(),
+    );
+  }
 }
