@@ -37,6 +37,7 @@ dependencies:
   cupertino_icons:
   logging: ^1.3.0 
   http:
+  shared_preferences:
 
 dev_dependencies:
   flutter_test:
