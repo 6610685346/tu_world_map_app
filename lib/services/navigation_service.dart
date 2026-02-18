@@ -13,7 +13,7 @@ class NavigationService {
         'https://router.project-osrm.org/route/v1/foot/'
         '${start.longitude},${start.latitude};'
         '${destination.longitude},${destination.latitude}'
-        '?overview=full&geometries=polyline';
+        '?overview=full&geometries=geojson';
 
     final response = await http.get(Uri.parse(url));
 
@@ -25,41 +25,8 @@ class NavigationService {
 
     final data = json.decode(response.body);
 
-    final geometry = data['routes'][0]['geometry'];
+    final coordinates = data['routes'][0]['geometry']['coordinates'] as List;
 
-    return _decodePolyline(geometry);
-  }
-
-  List<LatLng> _decodePolyline(String encoded) {
-    List<LatLng> points = [];
-    int index = 0;
-    int len = encoded.length;
-    int lat = 0;
-    int lng = 0;
-
-    while (index < len) {
-      int b, shift = 0, result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lat += dlat;
-
-      shift = 0;
-      result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lng += dlng;
-
-      points.add(LatLng(lat / 1E5, lng / 1E5));
-    }
-
-    return points;
+    return coordinates.map((coord) => LatLng(coord[1], coord[0])).toList();
   }
 }
