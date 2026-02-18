@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:tu_world_map_app/services/search_history_service.dart';
+import 'package:tu_world_map_app/services/recent_location_service.dart';
+import 'package:tu_world_map_app/services/favorite_service.dart';
+import 'package:tu_world_map_app/services/settings_service.dart';
+import 'package:tu_world_map_app/screens/terms_of_service_screen.dart';
+import 'package:tu_world_map_app/screens/privacy_policy_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -10,9 +14,15 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _notificationsEnabled = true;
-  bool _locationEnabled = true;
-  bool _autoSaveRecent = true;
+  late bool _locationEnabled;
+  late bool _autoSaveRecent;
+
+  @override
+  void initState() {
+    super.initState();
+    _locationEnabled = SettingsService().locationEnabled;
+    _autoSaveRecent = SettingsService().autoSaveRecent;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,18 +75,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 8),
               _buildSettingsCard([
                 _buildSwitchTile(
-                  icon: Icons.notifications,
-                  title: 'Notifications',
-                  subtitle: 'Receive updates and alerts',
-                  value: _notificationsEnabled,
-                  onChanged: (value) {
-                    setState(() {
-                      _notificationsEnabled = value;
-                    });
-                  },
-                ),
-                _buildDivider(),
-                _buildSwitchTile(
                   icon: Icons.location_on,
                   title: 'Location Access',
                   subtitle: 'Allow app to access your location',
@@ -85,6 +83,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     setState(() {
                       _locationEnabled = value;
                     });
+                    SettingsService().setLocationEnabled(value);
                   },
                 ),
                 _buildDivider(),
@@ -97,6 +96,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     setState(() {
                       _autoSaveRecent = value;
                     });
+                    SettingsService().setAutoSaveRecent(value);
                   },
                 ),
               ]),
@@ -115,16 +115,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     context,
                     'Clear Recent Locations',
                     'Are you sure you want to clear all recent locations?',
-                    () {
-                      // Clear recent locations logic would go here
-                      // For now, just show a snackbar
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Recent locations cleared'),
-                          backgroundColor: Color(0xFFD32F2F),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
+                    () async {
+                      await RecentLocationService().clear();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Recent locations cleared'),
+                            backgroundColor: Color(0xFFD32F2F),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
                     },
                   ),
                 ),
@@ -137,72 +138,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     context,
                     'Clear Favorites',
                     'Are you sure you want to clear all favorites?',
-                    () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Favorites cleared'),
-                          backgroundColor: Color(0xFFD32F2F),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
+                    () async {
+                      await FavoriteService().clearAll();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Favorites cleared'),
+                            backgroundColor: Color(0xFFD32F2F),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
                     },
                   ),
-                ),
-                _buildDivider(),
-                _buildActionTile(
-                  icon: Icons.search_off,
-                  title: 'Clear Search History',
-                  subtitle: 'Remove all search history',
-                  onTap: () => _showClearDialog(
-                    context,
-                    'Clear Search History',
-                    'Are you sure you want to clear all search history?',
-                    () {
-                      SearchHistoryService().clear();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Search history cleared'),
-                          backgroundColor: Color(0xFFD32F2F),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ]),
-
-              const SizedBox(height: 24),
-
-              // Appearance Section
-              _buildSectionTitle('Appearance'),
-              const SizedBox(height: 8),
-              _buildSettingsCard([
-                _buildActionTile(
-                  icon: Icons.palette,
-                  title: 'Theme',
-                  subtitle: 'Warm & Cozy (Default)',
-                  trailing: Icon(
-                    CupertinoIcons.chevron_right,
-                    color: Color(0xFF8D6E63),
-                    size: 20,
-                  ),
-                  onTap: () {
-                    // Theme selection would go here
-                  },
-                ),
-                _buildDivider(),
-                _buildActionTile(
-                  icon: Icons.text_fields,
-                  title: 'Text Size',
-                  subtitle: 'Medium',
-                  trailing: Icon(
-                    CupertinoIcons.chevron_right,
-                    color: Color(0xFF8D6E63),
-                    size: 20,
-                  ),
-                  onTap: () {
-                    // Text size setting would go here
-                  },
                 ),
               ]),
 
@@ -229,7 +177,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     size: 20,
                   ),
                   onTap: () {
-                    // Navigate to terms of service
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const TermsOfServiceScreen(),
+                      ),
+                    );
                   },
                 ),
                 _buildDivider(),
@@ -243,7 +196,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     size: 20,
                   ),
                   onTap: () {
-                    // Navigate to privacy policy
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PrivacyPolicyScreen(),
+                      ),
+                    );
                   },
                 ),
                 _buildDivider(),
