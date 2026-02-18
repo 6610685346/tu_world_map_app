@@ -127,9 +127,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: () {
-              // Optional: navigate to Search tab
-            },
+            onPressed: () => widget.onTabChange(2),
             icon: const Icon(Icons.search),
             label: const Text('Explore Locations'),
             style: ElevatedButton.styleFrom(
