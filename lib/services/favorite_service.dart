@@ -12,7 +12,7 @@ class FavoriteService extends ChangeNotifier {
   FavoriteService._internal();
 
   final List<Building> _favorites = [];
-  final Map<String, String> _customNames = {};
+  final Map<int, String> _customNames = {};
 
   void toggle(Building building) {
     if (isFavorite(building)) {
@@ -41,7 +41,7 @@ class FavoriteService extends ChangeNotifier {
     return List.unmodifiable(_favorites);
   }
 
-  void setCustomName(String buildingId, String name) {
+  void setCustomName(int buildingId, String name) {
     _customNames[buildingId] = name;
     notifyListeners();
   }

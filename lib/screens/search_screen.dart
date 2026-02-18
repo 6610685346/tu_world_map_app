@@ -74,8 +74,9 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _loadMoreBuildings() {
-    if (isLoadingMore || displayedBuildings.length >= filteredBuildings.length)
+    if (isLoadingMore || displayedBuildings.length >= filteredBuildings.length) {
       return;
+    }
 
     setState(() => isLoadingMore = true);
 

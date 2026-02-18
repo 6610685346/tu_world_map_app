@@ -1,5 +1,5 @@
 class BuildingDetail {
-  final String buildingId;
+  final int buildingId;
   final String openingTime;
   final String address;
   final String phone;

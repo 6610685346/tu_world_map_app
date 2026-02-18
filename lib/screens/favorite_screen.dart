@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 
 import 'package:tu_world_map_app/models/building.dart';
 import 'package:tu_world_map_app/models/building_type.dart';
@@ -158,7 +157,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
         final building = favorites[index];
 
         return Dismissible(
-          key: Key(building.id),
+          key: Key(building.id.toString()),
           direction: DismissDirection.endToStart,
           onDismissed: (_) {
             _favoriteService.remove(building);

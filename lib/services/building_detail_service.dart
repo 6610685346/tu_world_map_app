@@ -1,7 +1,7 @@
 import 'package:tu_world_map_app/models/building_detail.dart';
 
 class BuildingDetailService {
-  Future<BuildingDetail> getDetail(String buildingId) async {
+  Future<BuildingDetail> getDetail(int buildingId) async {
     // simulate network delay
     await Future.delayed(const Duration(milliseconds: 500));
 

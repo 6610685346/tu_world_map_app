@@ -38,15 +38,42 @@ class _MapScreenState extends State<MapScreen> {
   final MapSelectionService _selectionService = MapSelectionService();
 
   // State
-  List<Building> buildings = [];
+  late List<BuildingWithPolygon> buildingsWithPolygon;
+
   List<LatLng> currentRoute = [];
 
   Building? selectedBuilding;
-  String? selectedBuildingId;
+  int? selectedBuildingId;
   LatLng? selectedBuildingCenter;
   LatLng? currentLocation;
 
   bool isLoading = true;
+
+  bool _isInsidePolygon(LatLng point, List<LatLng> polygon) {
+    bool inside = false;
+
+    for (int i = 0, j = polygon.length - 1;
+        i < polygon.length;
+        j = i++) {
+
+      final xi = polygon[i].longitude;
+      final yi = polygon[i].latitude;
+      final xj = polygon[j].longitude;
+      final yj = polygon[j].latitude;
+
+      final intersect =
+          ((yi > point.latitude) != (yj > point.latitude)) &&
+          (point.longitude <
+              (xj - xi) *
+                      (point.latitude - yi) /
+                      (yj - yi) +
+                  xi);
+
+      if (intersect) inside = !inside;
+    }
+
+    return inside;
+  }
 
   /// =====================
   /// Lifecycle
@@ -54,14 +81,17 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
-
-    _loadBuildings();
-    _getCurrentLocation();
-
     _selectionService.addListener(_onBuildingSelected);
+    _loadData();
+  }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _onBuildingSelected();
+  Future<void> _loadData() async {
+    final service = BuildingService();
+    final data = await service.getAllBuildingsWithPolygons();
+
+    setState(() {
+      buildingsWithPolygon = data;
+      isLoading = false;
     });
   }
 
@@ -76,10 +106,20 @@ class _MapScreenState extends State<MapScreen> {
   /// =====================
   void _onBuildingSelected() {
     final selected = _selectionService.selectedBuilding;
-    if (selected == null || buildings.isEmpty) return;
+    if (selected == null) return;
 
-    final polygon = selected.polygons.first;
-    final center = _polygonCentroid(polygon);
+    BuildingWithPolygon? item;
+
+    for (final e in buildingsWithPolygon) {
+      if (e.building.id == selected.id) {
+        item = e;
+        break;
+      }
+    }
+
+if (item == null) return;
+
+    final center = _polygonCentroid(item.polygon);
 
     setState(() {
       selectedBuilding = selected;
@@ -89,18 +129,6 @@ class _MapScreenState extends State<MapScreen> {
     });
 
     _mapController.move(center, 18.3);
-  }
-
-  /// =====================
-  /// Load Data
-  /// =====================
-  Future<void> _loadBuildings() async {
-    final data = await _buildingService.getBuildings();
-
-    setState(() {
-      buildings = data;
-      isLoading = false;
-    });
   }
 
   /// =====================
@@ -133,9 +161,20 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> navigateToBuilding(Building building) async {
     if (currentLocation == null) return;
 
+  BuildingWithPolygon? item;
+
+  for (final e in buildingsWithPolygon) {
+    if (e.building.id == building.id) {
+      item = e;
+      break;
+    }
+  }
+
+  if (item == null) return;
+
     final destination = _getClosestPoint(
       currentLocation!,
-      building.polygons.first,
+      item.polygon,
     );
 
     final route = await NavigationService().buildRoute(
@@ -251,7 +290,24 @@ class _MapScreenState extends State<MapScreen> {
             initialZoom: 16,
             minZoom: 15,
             maxZoom: 19,
+
+            onTap: (tapPosition, latlng) {
+              bool found = false;
+
+              for (final item in buildingsWithPolygon) {
+                if (_isInsidePolygon(latlng, item.polygon)) {
+                  _selectionService.select(item.building);
+                  found = true;
+                  break;
+                }
+              }
+
+              if (!found) {
+                _selectionService.clear();
+              }
+            },
           ),
+          
           children: [
             _buildTileLayer(),
             _buildPolygonLayer(),
@@ -276,19 +332,20 @@ class _MapScreenState extends State<MapScreen> {
 
   PolygonLayer _buildPolygonLayer() {
     return PolygonLayer(
-      polygons: buildings.expand((building) {
-        return building.polygons.map(
-          (polygon) => Polygon(
-            points: polygon,
-            color: building.id == selectedBuildingId
+      polygons: buildingsWithPolygon.expand((item) {
+        return [
+          Polygon(
+            points: item.polygon,
+            color: item.building.id == selectedBuildingId
                 ? AppColors.primaryRed.withOpacity(0.4)
                 : Colors.transparent,
-            borderColor: building.id == selectedBuildingId
+            borderColor: item.building.id == selectedBuildingId
                 ? AppColors.darkRed
                 : Colors.transparent,
-            borderStrokeWidth: building.id == selectedBuildingId ? 3 : 0,
+            borderStrokeWidth:
+                item.building.id == selectedBuildingId ? 3 : 0,
           ),
-        );
+        ];
       }).toList(),
     );
   }

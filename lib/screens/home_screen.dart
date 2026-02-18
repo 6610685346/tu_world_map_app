@@ -262,7 +262,12 @@ class _PopularLocationsSectionState extends State<PopularLocationsSection> {
   }
 
   void _loadPopular() async {
-    final all = await buildingService.getBuildings();
+    final allWithPolygon =
+        await buildingService.getAllBuildingsWithPolygons();
+
+    final all = allWithPolygon
+        .map((e) => e.building)
+        .toList();
     final shuffled = List.of(all)..shuffle();
     setState(() {
       popular = shuffled.take(min(3, shuffled.length)).toList();
