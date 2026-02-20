@@ -168,7 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 40),
 
                 const Text(
-                  "Popular Locations",
+                  "Recommend Locations",
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -239,7 +239,7 @@ class _RecentLocationsSectionState extends State<RecentLocationsSection> {
   }
 }
 
-// Popular Location
+// Recommend Location
 class PopularLocationsSection extends StatefulWidget {
   final Function(int) onTabChange;
 
