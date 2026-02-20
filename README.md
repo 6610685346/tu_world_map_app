@@ -2,15 +2,10 @@
 
 A new Flutter project.
 
-## Getting Started
+## Member
+1.Athichart Penwong         6610685015
+2.Thawalporn Jindavaranon   6610545029
+3.Krittin Dansai            6610685031
+4.Natthasit Thitithammakun  6610685155
+5.Supawich Boonpraseart     6610685346
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
