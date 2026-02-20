@@ -1,7 +1,5 @@
 # tu_world_map_app
 
-A new Flutter project.
-
 ## Member
 1. Athichart Penwong         6610685015
 2. Thawalporn Jindavaranon   6610545029
