@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -48,6 +50,8 @@ class _MapScreenState extends State<MapScreen> {
 
   bool isLoading = true;
 
+  StreamSubscription<Position>? _positionStream;
+
   /// =====================
   /// Lifecycle
   /// =====================
@@ -68,6 +72,7 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void dispose() {
     _selectionService.removeListener(_onBuildingSelected);
+    _positionStream?.cancel();
     super.dispose();
   }
 
@@ -104,7 +109,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   /// =====================
-  /// Location
+  /// Location (Real-Time)
   /// =====================
   Future<void> _getCurrentLocation() async {
     if (!await Geolocator.isLocationServiceEnabled()) return;
@@ -118,13 +123,26 @@ class _MapScreenState extends State<MapScreen> {
 
     if (permission == LocationPermission.deniedForever) return;
 
-    final position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
+    const locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.bestForNavigation,
+      distanceFilter: 3,
     );
 
-    setState(() {
-      currentLocation = LatLng(position.latitude, position.longitude);
-    });
+    _positionStream =
+        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+          (Position position) async {
+            final newLocation = LatLng(position.latitude, position.longitude);
+
+            setState(() {
+              currentLocation = newLocation;
+            });
+
+            // Update route in real-time if navigating
+            if (selectedBuilding != null) {
+              await _updateRouteRealtime();
+            }
+          },
+        );
   }
 
   /// =====================
@@ -152,6 +170,24 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  Future<void> _updateRouteRealtime() async {
+    if (currentLocation == null || selectedBuilding == null) return;
+
+    final destination = _getClosestPoint(
+      currentLocation!,
+      selectedBuilding!.polygons.first,
+    );
+
+    final route = await NavigationService().buildRoute(
+      start: currentLocation!,
+      destination: destination,
+    );
+
+    setState(() {
+      currentRoute = route;
+    });
+  }
+
   LatLng _getClosestPoint(LatLng start, List<LatLng> polygon) {
     double minDistance = double.infinity;
     LatLng closest = polygon.first;
@@ -164,6 +200,7 @@ class _MapScreenState extends State<MapScreen> {
         closest = point;
       }
     }
+
     return closest;
   }
 
@@ -246,8 +283,8 @@ class _MapScreenState extends State<MapScreen> {
       children: [
         FlutterMap(
           mapController: _mapController,
-          options: MapOptions(
-            initialCenter: const LatLng(14.0683, 100.6034),
+          options: const MapOptions(
+            initialCenter: LatLng(14.0683, 100.6034),
             initialZoom: 16,
             minZoom: 15,
             maxZoom: 19,
@@ -327,7 +364,9 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Widget _buildSelectedBuildingMarker() {
-    if (selectedBuildingCenter == null) return const SizedBox();
+    if (selectedBuildingCenter == null) {
+      return const SizedBox();
+    }
 
     return MarkerLayer(
       markers: [
