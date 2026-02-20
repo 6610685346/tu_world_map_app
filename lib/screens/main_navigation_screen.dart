@@ -74,7 +74,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             BottomNavigationBarItem(icon: Icon(Icons.search), label: "Search"),
             BottomNavigationBarItem(
               icon: Icon(Icons.favorite),
-              label: "Favourite",
+              label: "Favorite",
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.settings),
