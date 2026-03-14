@@ -8,6 +8,7 @@ class Building {
   final String imageUrl;
   bool isFavorite;
   final List<List<LatLng>> polygons;
+  final LatLng center;
 
   Building({
     required this.id,
@@ -15,6 +16,7 @@ class Building {
     required this.type,
     required this.imageUrl,
     required this.polygons,
+    required this.center,
     this.isFavorite = false,
   });
 
@@ -26,13 +28,31 @@ class Building {
       'imageUrl': imageUrl,
       'isFavorite': isFavorite,
       'polygons': polygons
-          .map((polygon) =>
-              polygon.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList())
+          .map(
+            (polygon) => polygon
+                .map((p) => {'lat': p.latitude, 'lng': p.longitude})
+                .toList(),
+          )
           .toList(),
     };
   }
 
   factory Building.fromJson(Map<String, dynamic> json) {
+    final polygons = (json['polygons'] as List)
+        .map(
+          (polygon) => (polygon as List)
+              .map(
+                (p) => LatLng(
+                  (p['lat'] as num).toDouble(),
+                  (p['lng'] as num).toDouble(),
+                ),
+              )
+              .toList(),
+        )
+        .toList();
+
+    final center = polygons.first.first;
+
     return Building(
       id: json['id'] as String,
       name: json['name'] as String,
@@ -42,14 +62,8 @@ class Building {
       ),
       imageUrl: json['imageUrl'] as String,
       isFavorite: json['isFavorite'] as bool? ?? false,
-      polygons: (json['polygons'] as List)
-          .map((polygon) => (polygon as List)
-              .map((p) => LatLng(
-                    (p['lat'] as num).toDouble(),
-                    (p['lng'] as num).toDouble(),
-                  ))
-              .toList())
-          .toList(),
+      polygons: polygons,
+      center: center,
     );
   }
 }

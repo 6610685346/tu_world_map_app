@@ -38,6 +38,7 @@ class _MapScreenState extends State<MapScreen> {
   final MapController _mapController = MapController();
   final BuildingService _buildingService = BuildingService();
   final MapSelectionService _selectionService = MapSelectionService();
+  final NavigationService _navigationService = NavigationService();
 
   // State
   List<Building> buildings = [];
@@ -47,8 +48,11 @@ class _MapScreenState extends State<MapScreen> {
   String? selectedBuildingId;
   LatLng? selectedBuildingCenter;
   LatLng? currentLocation;
+  LatLng? _lastRouteStart;
+  LatLng? routingDestination;
 
   bool isLoading = true;
+  bool _isRouting = false;
 
   StreamSubscription<Position>? _positionStream;
 
@@ -84,13 +88,17 @@ class _MapScreenState extends State<MapScreen> {
     if (selected == null || buildings.isEmpty) return;
 
     final polygon = selected.polygons.first;
-    final center = _polygonCentroid(polygon);
+    final center = polygonCentroid(polygon);
 
     setState(() {
       selectedBuilding = selected;
       selectedBuildingId = selected.id;
       selectedBuildingCenter = center;
+
       currentRoute.clear();
+      routingDestination = null;
+      _lastRouteStart = null;
+      _isRouting = false;
     });
 
     _mapController.move(center, 18.3);
@@ -125,7 +133,7 @@ class _MapScreenState extends State<MapScreen> {
 
     const locationSettings = LocationSettings(
       accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 3,
+      distanceFilter: 10,
     );
 
     _positionStream =
@@ -138,8 +146,8 @@ class _MapScreenState extends State<MapScreen> {
             });
 
             // Update route in real-time if navigating
-            if (selectedBuilding != null) {
-              await _updateRouteRealtime();
+            if (routingDestination != null) {
+              await updateRouteWhileWalking();
             }
           },
         );
@@ -148,20 +156,39 @@ class _MapScreenState extends State<MapScreen> {
   /// =====================
   /// Navigation
   /// =====================
-  Future<void> navigateToBuilding(Building building) async {
+
+  Future<void> startNavigation(Building building) async {
     if (currentLocation == null) return;
 
-    final destination = _getClosestPoint(
-      currentLocation!,
+    setState(() {
+      _isRouting = false;
+      currentRoute.clear();
+      _lastRouteStart = null;
+      routingDestination = null;
+    });
+
+    final destinationNode = _navigationService.findNearestNodeToPolygon(
       building.polygons.first,
     );
 
-    final route = await NavigationService().buildRoute(
+    final destination = destinationNode.position;
+
+    routingDestination = destination;
+
+    final route = await _navigationService.buildRoute(
       start: currentLocation!,
       destination: destination,
     );
 
-    setState(() => currentRoute = route);
+    if (route.isEmpty) {
+      print("NO ROUTE FOUND map screen");
+      return;
+    }
+
+    setState(() {
+      currentRoute = route;
+      _lastRouteStart = currentLocation;
+    });
 
     final bounds = LatLngBounds.fromPoints(route);
 
@@ -170,25 +197,52 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  Future<void> _updateRouteRealtime() async {
-    if (currentLocation == null || selectedBuilding == null) return;
+  /// =====================
+  /// Realtime navigation update (while walking)
+  /// =====================
 
-    final destination = _getClosestPoint(
-      currentLocation!,
-      selectedBuilding!.polygons.first,
-    );
+  Future<void> updateRouteWhileWalking() async {
+    if (currentLocation == null) return;
+    if (routingDestination == null) return;
+    if (_isRouting) return;
 
-    final route = await NavigationService().buildRoute(
-      start: currentLocation!,
-      destination: destination,
-    );
+    if (_lastRouteStart != null) {
+      final moved = Distance().as(
+        LengthUnit.Meter,
+        _lastRouteStart!,
+        currentLocation!,
+      );
 
-    setState(() {
-      currentRoute = route;
-    });
+      if (moved < 10) return; // avoid constant rerouting
+    }
+
+    _isRouting = true;
+
+    try {
+      final newRoute = await _navigationService.buildRoute(
+        start: currentLocation!,
+        destination: routingDestination!,
+      );
+
+      if (newRoute.isEmpty) {
+        print("Realtime route failed — keeping old route");
+        return;
+      }
+
+      setState(() {
+        currentRoute = newRoute;
+        _lastRouteStart = currentLocation;
+      });
+    } finally {
+      _isRouting = false;
+    }
   }
 
-  LatLng _getClosestPoint(LatLng start, List<LatLng> polygon) {
+  /// =====================
+  /// Geometry Helpers
+  /// =====================
+
+  LatLng getClosestPoint(LatLng start, List<LatLng> polygon) {
     double minDistance = double.infinity;
     LatLng closest = polygon.first;
 
@@ -204,7 +258,7 @@ class _MapScreenState extends State<MapScreen> {
     return closest;
   }
 
-  LatLng _polygonCentroid(List<LatLng> polygon) {
+  LatLng polygonCentroid(List<LatLng> polygon) {
     double latSum = 0;
     double lngSum = 0;
 
@@ -258,7 +312,7 @@ class _MapScreenState extends State<MapScreen> {
           icon: const Icon(Icons.directions, color: AppColors.primaryRed),
           onPressed: () {
             if (selectedBuilding != null) {
-              navigateToBuilding(selectedBuilding!);
+              startNavigation(selectedBuilding!);
             }
           },
         ),
@@ -415,6 +469,8 @@ class _MapScreenState extends State<MapScreen> {
                 selectedBuildingId = null;
                 selectedBuildingCenter = null;
                 currentRoute.clear();
+                _lastRouteStart = null;
+                routingDestination = null;
               });
               _selectionService.clear();
             },

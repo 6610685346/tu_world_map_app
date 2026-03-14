@@ -1,32 +1,110 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'package:tu_world_map_app/models/path_node.dart';
+import 'package:tu_world_map_app/services/path_graph_service.dart';
+import 'package:tu_world_map_app/services/path_graph_generated.dart';
 
 class NavigationService {
-  static const String _apiKey = 'pKEb1AjUUNqlSI9aLaO5';
-
   Future<List<LatLng>> buildRoute({
     required LatLng start,
     required LatLng destination,
   }) async {
-    final url =
-        'https://router.project-osrm.org/route/v1/foot/'
-        '${start.longitude},${start.latitude};'
-        '${destination.longitude},${destination.latitude}'
-        '?overview=full&geometries=geojson';
+    final key =
+        '${start.latitude.toStringAsFixed(6)},${start.longitude.toStringAsFixed(6)}-'
+        '${destination.latitude.toStringAsFixed(6)},${destination.longitude.toStringAsFixed(6)}';
 
-    final response = await http.get(Uri.parse(url));
+    final startCandidates = PathGraphService.findNearestNodes(start, 10);
+    final endCandidates = PathGraphService.findNearestNodes(destination, 10);
 
-    if (response.statusCode != 200) {
-      print("STATUS CODE: ${response.statusCode}");
-      print("BODY: ${response.body}");
-      throw Exception('Failed to load route');
+    final distance = Distance();
+
+    // Sort candidates so closest nodes are tested first
+    startCandidates.sort(
+      (a, b) => distance
+          .as(LengthUnit.Meter, start, a.position)
+          .compareTo(distance.as(LengthUnit.Meter, start, b.position)),
+    );
+
+    endCandidates.sort(
+      (a, b) => distance
+          .as(LengthUnit.Meter, destination, a.position)
+          .compareTo(distance.as(LengthUnit.Meter, destination, b.position)),
+    );
+
+    List<PathNode> bestPath = [];
+
+    for (final s in startCandidates) {
+      for (final e in endCandidates) {
+        print("TRY ROUTE: ${s.id} -> ${e.id}");
+
+        final path = PathGraphService.findPath(s, e);
+
+        if (path.isNotEmpty) {
+          bestPath = path;
+          print("ROUTE FOUND");
+          break;
+        }
+      }
+
+      if (bestPath.isNotEmpty) break;
     }
 
-    final data = json.decode(response.body);
+    if (bestPath.isEmpty) {
+      print("NO ROUTE FOUND, navigation service");
+      return [];
+    }
 
-    final coordinates = data['routes'][0]['geometry']['coordinates'] as List;
+    print("PATH NODE COUNT: ${bestPath.length}");
 
-    return coordinates.map((coord) => LatLng(coord[1], coord[0])).toList();
+    final simplified = <LatLng>[];
+    LatLng? last;
+
+    const minDistance = 3;
+
+    for (final node in bestPath) {
+      if (last == null ||
+          distance.as(LengthUnit.Meter, last, node.position) > minDistance) {
+        simplified.add(node.position);
+        last = node.position;
+      }
+    }
+
+    if (bestPath.isNotEmpty) {
+      final first = bestPath.first.position;
+      final lastNode = bestPath.last.position;
+
+      if (distance.as(LengthUnit.Meter, start, first) < 15) {
+        simplified.insert(0, start);
+      }
+
+      if (distance.as(LengthUnit.Meter, lastNode, destination) < 50) {
+        simplified.add(destination);
+      }
+    }
+
+    print("SIMPLIFIED COUNT: ${simplified.length}");
+
+    return simplified;
+  }
+
+  PathNode findNearestNodeToPolygon(List<LatLng> polygon) {
+    double bestDistance = double.infinity;
+    PathNode? bestNode;
+
+    final distance = Distance();
+
+    for (final node in PathGraphGenerated.nodes.values) {
+      if (node.neighbors.isEmpty) continue; // Skip isolated nodes
+
+      for (final p in polygon) {
+        final d = distance.as(LengthUnit.Meter, node.position, p);
+
+        if (d < bestDistance) {
+          bestDistance = d;
+          bestNode = node;
+        }
+      }
+    }
+
+    return bestNode!;
   }
 }
