@@ -31,8 +31,10 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_map: ^8.2.2
+  flutter_map_mbtiles: ^1.0.0
+  sqlite3_flutter_libs:
   maplibre_gl:
-  latlong2:
+  latlong2: ^0.9.0
   geolocator:
   cupertino_icons:
   logging: ^1.3.0 
@@ -51,3 +53,4 @@ flutter:
   assets:
     - assets/styles/simple_shortbread.json
     - assets/styles/versatiles-colorful.json
+    - assets/tiles/thammasat_raster.mbtiles

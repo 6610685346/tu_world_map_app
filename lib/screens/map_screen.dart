@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter_map_mbtiles/flutter_map_mbtiles.dart';
 
 import 'package:tu_world_map_app/models/building.dart';
 import 'package:tu_world_map_app/models/building_type.dart';
@@ -39,6 +43,10 @@ class _MapScreenState extends State<MapScreen> {
   final BuildingService _buildingService = BuildingService();
   final MapSelectionService _selectionService = MapSelectionService();
   final NavigationService _navigationService = NavigationService();
+  final LatLngBounds campusBounds = LatLngBounds(
+    LatLng(14.0685, 100.5893), // decrease tolower and decrease to go more left
+    LatLng(14.0821, 100.6200), // increase to go higher and add to go more right
+  );
 
   // State
   List<Building> buildings = [];
@@ -54,6 +62,8 @@ class _MapScreenState extends State<MapScreen> {
   bool isLoading = true;
   bool _isRouting = false;
 
+  MbTilesTileProvider? _mbTilesProvider;
+
   StreamSubscription<Position>? _positionStream;
 
   /// =====================
@@ -63,6 +73,7 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
 
+    _initMbtiles();
     _loadBuildings();
     _getCurrentLocation();
 
@@ -114,6 +125,22 @@ class _MapScreenState extends State<MapScreen> {
       buildings = data;
       isLoading = false;
     });
+  }
+
+  Future<void> _initMbtiles() async {
+    final path = await copyMbtilesToDataFolder();
+    _mbTilesProvider = MbTilesTileProvider.fromPath(path: path);
+    setState(() {});
+  }
+
+  Future<String> copyMbtilesToDataFolder() async {
+    final bytes = await rootBundle.load(
+      'assets/tiles/thammasat_raster.mbtiles',
+    );
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}/thammasat_raster.mbtiles');
+    await file.writeAsBytes(bytes.buffer.asUint8List());
+    return file.path;
   }
 
   /// =====================
@@ -270,6 +297,29 @@ class _MapScreenState extends State<MapScreen> {
     return LatLng(latSum / polygon.length, lngSum / polygon.length);
   }
 
+  LatLng clampLatLngToBounds(
+    LatLng center,
+    LatLngBounds bounds,
+    double zoom,
+    Size mapSize,
+  ) {
+    // compute half-extent in lat/lng for viewport
+    final zoomInt = zoom.toInt(); // convert double to int
+    final halfLat = (mapSize.height / 256) * (1 / (1 << zoomInt));
+    final halfLng = (mapSize.width / 256) * (1 / (1 << zoomInt));
+
+    final clampedLat = center.latitude.clamp(
+      bounds.south + halfLat,
+      bounds.north - halfLat,
+    );
+    final clampedLng = center.longitude.clamp(
+      bounds.west + halfLng,
+      bounds.east - halfLng,
+    );
+
+    return LatLng(clampedLat, clampedLng);
+  }
+
   /// =====================
   /// UI
   /// =====================
@@ -337,11 +387,22 @@ class _MapScreenState extends State<MapScreen> {
       children: [
         FlutterMap(
           mapController: _mapController,
-          options: const MapOptions(
+          options: MapOptions(
             initialCenter: LatLng(14.0683, 100.6034),
             initialZoom: 16,
             minZoom: 15,
             maxZoom: 19,
+            onPositionChanged: (pos, _) {
+              final c = pos.center;
+              final z = pos.zoom;
+
+              final mapSize = MediaQuery.of(context).size; // viewport size
+              final clamped = clampLatLngToBounds(c, campusBounds, z, mapSize);
+
+              if (clamped != c) {
+                _mapController.move(clamped, z);
+              }
+            },
           ),
           children: [
             _buildTileLayer(),
@@ -358,11 +419,12 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   TileLayer _buildTileLayer() {
-    return TileLayer(
-      urlTemplate:
-          'https://api.maptiler.com/maps/openstreetmap/256/{z}/{x}/{y}.jpg?key=pKEb1AjUUNqlSI9aLaO5',
-      userAgentPackageName: 'com.example.tu_world_map_app',
-    );
+    if (_mbTilesProvider == null) {
+      // show blank tiles while loading
+      return TileLayer(urlTemplate: '');
+    }
+
+    return TileLayer(tileProvider: _mbTilesProvider!);
   }
 
   PolygonLayer _buildPolygonLayer() {
