@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'main_navigation_screen.dart'; // adjust path if needed
+import 'package:tu_world_map_app/services/settings_service.dart';
 
 class AppScrollBehavior extends MaterialScrollBehavior {
   @override
@@ -167,6 +168,7 @@ class _TUWorldMapOnboardingState extends State<TUWorldMapOnboarding> {
                                 const SizedBox(height: 32),
                                 ElevatedButton.icon(
                                   onPressed: () {
+                                    SettingsService().setFirstLaunchSeen();
                                     Navigator.of(context).pushReplacement(
                                       MaterialPageRoute(
                                         builder: (_) =>

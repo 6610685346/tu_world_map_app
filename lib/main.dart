@@ -5,6 +5,7 @@ import 'package:tu_world_map_app/services/recent_location_service.dart';
 import 'package:tu_world_map_app/services/favorite_service.dart';
 import 'package:tu_world_map_app/services/settings_service.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/main_navigation_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,7 +37,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
       ),
       initialRoute: '/',
-      home: const TUWorldMapOnboarding(),
+      home: SettingsService().firstLaunch ? const TUWorldMapOnboarding() : const MainNavigationScreen(),
     );
   }
 }
