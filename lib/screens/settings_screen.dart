@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:tu_world_map_app/services/recent_location_service.dart';
 import 'package:tu_world_map_app/services/favorite_service.dart';
 import 'package:tu_world_map_app/services/settings_service.dart';
@@ -14,24 +15,33 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  late bool _locationEnabled;
   late bool _autoSaveRecent;
 
   @override
   void initState() {
     super.initState();
-    _locationEnabled = SettingsService().locationEnabled;
     _autoSaveRecent = SettingsService().autoSaveRecent;
+  }
+
+  Future<void> _launchFeedbackUrl() async {
+    final Uri url = Uri.parse('mailto:support@tuworldmap.com?subject=App%20Feedback');
+    if (!await launchUrl(url)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open email client to send feedback')),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFFBF5), // Warm cream background
+        backgroundColor: const Color(0xFFFFFBF5), 
         elevation: 0,
         toolbarHeight: 90,
-        title: Column(
+        title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -40,28 +50,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(
                 fontSize: 30,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF6D4C41), // Warm brown
+                color: Color(0xFF6D4C41),
               ),
             ),
             Text(
               'Customize your experience',
               style: TextStyle(
                 fontSize: 14,
-                color: Color(0xFF5D4037), // Dark warm brown
+                color: Color(0xFF5D4037),
               ),
             ),
           ],
         ),
       ),
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFFFFFBF5), // Almost white with warm hint
-              const Color(0xFFFFF8F0), // Very light cream
-              const Color(0xFFFFF3E8), // Subtle warm white
+              Color(0xFFFFFBF5),
+              Color(0xFFFFF8F0),
+              Color(0xFFFFF3E8),
             ],
           ),
         ),
@@ -70,23 +80,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // App Preferences Section
               _buildSectionTitle('App Preferences'),
               const SizedBox(height: 8),
               _buildSettingsCard([
-                _buildSwitchTile(
-                  icon: Icons.location_on,
-                  title: 'Location Access',
-                  subtitle: 'Allow app to access your location',
-                  value: _locationEnabled,
-                  onChanged: (value) {
-                    setState(() {
-                      _locationEnabled = value;
-                    });
-                    SettingsService().setLocationEnabled(value);
-                  },
-                ),
-                _buildDivider(),
                 _buildSwitchTile(
                   icon: Icons.history,
                   title: 'Auto-save Recent',
@@ -103,7 +99,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 24),
 
-              // Data Management Section
               _buildSectionTitle('Data Management'),
               const SizedBox(height: 8),
               _buildSettingsCard([
@@ -119,7 +114,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       await RecentLocationService().clear();
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
+                          const SnackBar(
                             content: Text('Recent locations cleared'),
                             backgroundColor: Color(0xFFD32F2F),
                             behavior: SnackBarBehavior.floating,
@@ -142,7 +137,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       await FavoriteService().clearAll();
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
+                          const SnackBar(
                             content: Text('Favorites cleared'),
                             backgroundColor: Color(0xFFD32F2F),
                             behavior: SnackBarBehavior.floating,
@@ -156,7 +151,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 24),
 
-              // About Section
+              _buildSectionTitle('Feedback'),
+              const SizedBox(height: 8),
+              _buildSettingsCard([
+                _buildActionTile(
+                  icon: Icons.feedback_outlined,
+                  title: 'Send Feedback',
+                  subtitle: 'Help us improve TU World Map',
+                  trailing: const Icon(
+                    CupertinoIcons.chevron_right,
+                    color: Color(0xFF8D6E63),
+                    size: 20,
+                  ),
+                  onTap: _launchFeedbackUrl,
+                ),
+              ]),
+
+              const SizedBox(height: 24),
+
               _buildSectionTitle('About'),
               const SizedBox(height: 8),
               _buildSettingsCard([
@@ -171,7 +183,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: Icons.description,
                   title: 'Terms of Service',
                   subtitle: 'Read our terms and conditions',
-                  trailing: Icon(
+                  trailing: const Icon(
                     CupertinoIcons.chevron_right,
                     color: Color(0xFF8D6E63),
                     size: 20,
@@ -190,7 +202,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: Icons.privacy_tip_outlined,
                   title: 'Privacy Policy',
                   subtitle: 'How we protect your data',
-                  trailing: Icon(
+                  trailing: const Icon(
                     CupertinoIcons.chevron_right,
                     color: Color(0xFF8D6E63),
                     size: 20,
@@ -209,7 +221,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: Icons.code,
                   title: 'Open Source Licenses',
                   subtitle: 'View third-party licenses',
-                  trailing: Icon(
+                  trailing: const Icon(
                     CupertinoIcons.chevron_right,
                     color: Color(0xFF8D6E63),
                     size: 20,
@@ -226,17 +238,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 32),
 
-              // Footer
               Center(
                 child: Column(
                   children: [
                     Icon(
                       Icons.school,
                       size: 48,
-                      color: Color(0xFFD32F2F).withValues(alpha: 0.3),
+                      color: const Color(0xFFD32F2F).withValues(alpha: 0.3),
                     ),
                     const SizedBox(height: 8),
-                    Text(
+                    const Text(
                       'TU World Map',
                       style: TextStyle(
                         fontSize: 18,
@@ -245,7 +256,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
+                    const Text(
                       'Explore Thammasat University with ease',
                       style: TextStyle(fontSize: 14, color: Color(0xFF5D4037)),
                       textAlign: TextAlign.center,
@@ -266,10 +277,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.only(left: 4),
       child: Text(
         title,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.bold,
-          color: Color(0xFF3E2723), // Very dark brown
+          color: Color(0xFF3E2723), 
         ),
       ),
     );
@@ -298,14 +309,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: Color(0xFFD32F2F).withValues(alpha: 0.1),
+          color: const Color(0xFFD32F2F).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, color: Color(0xFFD32F2F), size: 22),
+        child: Icon(icon, color: const Color(0xFFD32F2F), size: 22),
       ),
       title: Text(
         title,
-        style: TextStyle(
+        style: const TextStyle(
           fontWeight: FontWeight.w600,
           fontSize: 15,
           color: Color(0xFF3E2723),
@@ -313,12 +324,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(fontSize: 13, color: Color(0xFF5D4037)),
+        style: const TextStyle(fontSize: 13, color: Color(0xFF5D4037)),
       ),
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeThumbColor: Color(0xFFD32F2F),
+        activeThumbColor: const Color(0xFFD32F2F),
       ),
     );
   }
@@ -336,14 +347,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: Color(0xFFD32F2F).withValues(alpha: 0.1),
+          color: const Color(0xFFD32F2F).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, color: Color(0xFFD32F2F), size: 22),
+        child: Icon(icon, color: const Color(0xFFD32F2F), size: 22),
       ),
       title: Text(
         title,
-        style: TextStyle(
+        style: const TextStyle(
           fontWeight: FontWeight.w600,
           fontSize: 15,
           color: Color(0xFF3E2723),
@@ -351,7 +362,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(fontSize: 13, color: Color(0xFF5D4037)),
+        style: const TextStyle(fontSize: 13, color: Color(0xFF5D4037)),
       ),
       trailing: trailing,
       onTap: onTap,
@@ -363,7 +374,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       height: 1,
       indent: 72,
       endIndent: 16,
-      color: Color(0xFF5D4037).withValues(alpha: 0.1),
+      color: const Color(0xFF5D4037).withValues(alpha: 0.1),
     );
   }
 
@@ -377,24 +388,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: Color(0xFFFFFBF5),
+          backgroundColor: const Color(0xFFFFFBF5),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
             title,
-            style: TextStyle(
+            style: const TextStyle(
               color: Color(0xFF3E2723),
               fontWeight: FontWeight.bold,
             ),
           ),
-          content: Text(message, style: TextStyle(color: Color(0xFF5D4037))),
+          content: Text(message, style: const TextStyle(color: Color(0xFF5D4037))),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: Text('Cancel', style: TextStyle(color: Color(0xFF8D6E63))),
+              child: const Text('Cancel', style: TextStyle(color: Color(0xFF8D6E63))),
             ),
             ElevatedButton(
               onPressed: () {
@@ -402,13 +413,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onConfirm();
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFFD32F2F),
+                backgroundColor: const Color(0xFFD32F2F),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: Text('Clear'),
+              child: const Text('Clear'),
             ),
           ],
         );
