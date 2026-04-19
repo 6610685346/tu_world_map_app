@@ -1,6 +1,7 @@
 import 'package:latlong2/latlong.dart';
 import 'package:tu_world_map_app/models/path_node.dart';
 import 'package:tu_world_map_app/services/path_graph_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:tu_world_map_app/services/path_graph_generated.dart';
 
 class NavigationService {
@@ -8,10 +9,6 @@ class NavigationService {
     required LatLng start,
     required LatLng destination,
   }) async {
-    final key =
-        '${start.latitude.toStringAsFixed(6)},${start.longitude.toStringAsFixed(6)}-'
-        '${destination.latitude.toStringAsFixed(6)},${destination.longitude.toStringAsFixed(6)}';
-
     final startCandidates = PathGraphService.findNearestNodes(start, 10);
     final endCandidates = PathGraphService.findNearestNodes(destination, 10);
 
@@ -34,13 +31,13 @@ class NavigationService {
 
     for (final s in startCandidates) {
       for (final e in endCandidates) {
-        print("TRY ROUTE: ${s.id} -> ${e.id}");
+        debugPrint("TRY ROUTE: ${s.id} -> ${e.id}");
 
         final path = PathGraphService.findPath(s, e);
 
         if (path.isNotEmpty) {
           bestPath = path;
-          print("ROUTE FOUND");
+          debugPrint("ROUTE FOUND");
           break;
         }
       }
@@ -49,11 +46,11 @@ class NavigationService {
     }
 
     if (bestPath.isEmpty) {
-      print("NO ROUTE FOUND, navigation service");
+      debugPrint("NO ROUTE FOUND, navigation service");
       return [];
     }
 
-    print("PATH NODE COUNT: ${bestPath.length}");
+    debugPrint("PATH NODE COUNT: ${bestPath.length}");
 
     final simplified = <LatLng>[];
     LatLng? last;
@@ -81,7 +78,7 @@ class NavigationService {
       }
     }
 
-    print("SIMPLIFIED COUNT: ${simplified.length}");
+    debugPrint("SIMPLIFIED COUNT: ${simplified.length}");
 
     return simplified;
   }

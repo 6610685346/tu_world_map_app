@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
+
 import 'package:flutter_map_mbtiles/flutter_map_mbtiles.dart';
 
 import 'package:tu_world_map_app/models/building.dart';
@@ -119,18 +121,34 @@ class _MapScreenState extends State<MapScreen> {
   /// Load Data
   /// =====================
   Future<void> _loadBuildings() async {
-    final data = await _buildingService.getBuildings();
-
-    setState(() {
-      buildings = data;
-      isLoading = false;
-    });
+    try {
+      final data = await _buildingService.getBuildings();
+      if (mounted) {
+        setState(() {
+          buildings = data;
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading buildings: $e");
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
   }
 
   Future<void> _initMbtiles() async {
-    final path = await copyMbtilesToDataFolder();
-    _mbTilesProvider = MbTilesTileProvider.fromPath(path: path);
-    setState(() {});
+    try {
+      if (kIsWeb) {
+        debugPrint("MBTiles not supported natively on web.");
+        return;
+      }
+      final path = await copyMbtilesToDataFolder();
+      _mbTilesProvider = MbTilesTileProvider.fromPath(path: path);
+    } catch (e) {
+      debugPrint("Tile loading error: $e");
+    }
+    if (mounted) setState(() {});
   }
 
   Future<String> copyMbtilesToDataFolder() async {
@@ -208,7 +226,7 @@ class _MapScreenState extends State<MapScreen> {
     );
 
     if (route.isEmpty) {
-      print("NO ROUTE FOUND map screen");
+      debugPrint("NO ROUTE FOUND map screen");
       return;
     }
 
@@ -252,7 +270,7 @@ class _MapScreenState extends State<MapScreen> {
       );
 
       if (newRoute.isEmpty) {
-        print("Realtime route failed — keeping old route");
+        debugPrint("Realtime route failed — keeping old route");
         return;
       }
 
@@ -434,7 +452,7 @@ class _MapScreenState extends State<MapScreen> {
           (polygon) => Polygon(
             points: polygon,
             color: building.id == selectedBuildingId
-                ? AppColors.primaryRed.withOpacity(0.4)
+                ? AppColors.primaryRed.withValues(alpha: 0.4)
                 : Colors.transparent,
             borderColor: building.id == selectedBuildingId
                 ? AppColors.darkRed

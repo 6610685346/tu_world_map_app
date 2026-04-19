@@ -21,14 +21,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<Building> recent = [];
-
-  void _loadRecent() {
-    setState(() {
-      recent = RecentLocationService().getRecent();
-    });
-  }
-
   @override
   void didUpdateWidget(covariant HomeScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -102,7 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 30),
                           elevation: 3,
-                          shadowColor: Colors.red.withOpacity(0.3),
+                          shadowColor: Colors.red.withValues(alpha: 0.3),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
@@ -131,7 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           foregroundColor: const Color(0xFF3E2723),
                           padding: const EdgeInsets.symmetric(vertical: 30),
                           elevation: 3,
-                          shadowColor: Colors.orange.withOpacity(0.3),
+                          shadowColor: Colors.orange.withValues(alpha: 0.3),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
@@ -213,9 +205,9 @@ class _RecentLocationsSectionState extends State<RecentLocationsSection> {
     return Column(
       children: latestThree.map((building) {
         return Card(
-          color: Colors.white.withOpacity(0.9),
+          color: Colors.white.withValues(alpha: 0.9),
           elevation: 2,
-          shadowColor: Colors.red.withOpacity(0.2),
+          shadowColor: Colors.red.withValues(alpha: 0.2),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -278,9 +270,9 @@ class _PopularLocationsSectionState extends State<PopularLocationsSection> {
     return Column(
       children: popular.map((building) {
         return Card(
-          color: Colors.white.withOpacity(0.9),
+          color: Colors.white.withValues(alpha: 0.9),
           elevation: 2,
-          shadowColor: Colors.red.withOpacity(0.2),
+          shadowColor: Colors.red.withValues(alpha: 0.2),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),

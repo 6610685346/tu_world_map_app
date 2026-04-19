@@ -10,10 +10,10 @@ class DatabaseService {
     if (_db != null) return _db!;
 
     final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'buildings.db');
+    final path = join(dbPath, 'buildings_with_full_info.db');
 
     if (!await File(path).exists()) {
-      ByteData data = await rootBundle.load('assets/db/buildings.db');
+      ByteData data = await rootBundle.load('assets/db/buildings_with_full_info.db');
       List<int> bytes = data.buffer.asUint8List(
         data.offsetInBytes,
         data.lengthInBytes,

@@ -14,21 +14,30 @@ class BuildingService {
     final rows = await db.query('buildings');
 
     _cache = rows.map((row) {
-      final decoded = jsonDecode(row['polygons'] as String);
+      final decoded = jsonDecode(row['geometry'] as String);
 
-      final polygons = (decoded as List)
+      final coordinates = decoded['coordinates'] as List;
+      final polygons = coordinates
           .map<List<LatLng>>(
-            (poly) =>
-                (poly as List).map<LatLng>((p) => LatLng(p[0], p[1])).toList(),
+            (ring) => (ring as List)
+                .map<LatLng>(
+                  (p) => LatLng((p[1] as num).toDouble(), (p[0] as num).toDouble()),
+                )
+                .toList(),
           )
           .toList();
       final center = polygons.first.first;
 
+      final buildingTypeStr = (row['building'] as String? ?? '').toLowerCase();
+
       return Building(
-        id: row['id'] as String,
-        name: row['name'] as String,
-        type: BuildingType.values.firstWhere((e) => e.name == row['type']),
-        imageUrl: row['imageUrl'] as String,
+        id: row['id'].toString(),
+        name: row['name'] as String? ?? 'Unknown',
+        type: BuildingType.values.firstWhere(
+          (e) => e.name.toLowerCase() == buildingTypeStr,
+          orElse: () => BuildingType.other,
+        ),
+        imageUrl: row['image'] as String? ?? '',
         polygons: polygons,
         center: center,
       );

@@ -107,7 +107,7 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
                       height: 220,
                       width: double.infinity,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
+                      errorBuilder: (context, error, stackTrace) =>
                           const Icon(Icons.image_not_supported, size: 100),
                     ),
                   ),

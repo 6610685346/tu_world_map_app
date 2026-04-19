@@ -57,14 +57,25 @@ class _SearchScreenState extends State<SearchScreen> {
   // ================= DATA =================
 
   Future<void> _loadBuildings() async {
-    final data = await buildingService.getBuildings();
+    try {
+      final data = await buildingService.getBuildings();
 
-    setState(() {
-      allBuildings = data;
-      filteredBuildings = data;
-      _resetPagination();
-      isLoading = false;
-    });
+      if (mounted) {
+        setState(() {
+          allBuildings = data;
+          filteredBuildings = data;
+          _resetPagination();
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading buildings: $e");
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
   }
 
   void _resetPagination() {
@@ -74,8 +85,9 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _loadMoreBuildings() {
-    if (isLoadingMore || displayedBuildings.length >= filteredBuildings.length)
+    if (isLoadingMore || displayedBuildings.length >= filteredBuildings.length) {
       return;
+    }
 
     setState(() => isLoadingMore = true);
 
@@ -148,7 +160,7 @@ class _SearchScreenState extends State<SearchScreen> {
           initialChildSize: 0.9,
           minChildSize: 0.5,
           maxChildSize: 0.95,
-          builder: (_, __) {
+          builder: (context, controller) {
             return Container(
               decoration: const BoxDecoration(
                 color: Color(0xFFFDF6F0),
@@ -203,7 +215,7 @@ class _SearchScreenState extends State<SearchScreen> {
             width: 50,
             height: 50,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Icon(
+            errorBuilder: (context, error, stackTrace) => const Icon(
               Icons.image_not_supported,
               size: 40,
               color: Colors.grey,

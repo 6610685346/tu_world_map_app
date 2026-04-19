@@ -1,5 +1,5 @@
 import 'package:latlong2/latlong.dart';
-import 'package:latlong2/latlong.dart' show Distance, LengthUnit;
+import 'package:flutter/foundation.dart';
 
 import '../models/path_node.dart';
 import 'package:tu_world_map_app/services/path_graph_generated.dart';
@@ -83,11 +83,11 @@ class PathGraphService {
   static List<PathNode> findPath(PathNode start, PathNode goal) {
     _prepareGraph();
 
-    print("A* ROUTING STARTED");
-    print("START NODE: ${start.id}");
-    print("GOAL NODE: ${goal.id}");
-    print("TOTAL NODES: ${nodes.length}");
-    print(
+    debugPrint("A* ROUTING STARTED");
+    debugPrint("START NODE: ${start.id}");
+    debugPrint("GOAL NODE: ${goal.id}");
+    debugPrint("TOTAL NODES: ${nodes.length}");
+    debugPrint(
       "EDGE COUNT: ${nodes.values.fold(0, (s, n) => s + n.neighbors.length)}",
     );
 
@@ -166,7 +166,7 @@ class PathGraphService {
       }
     }
 
-    print("NO PATH FOUND, A* FAILED");
+    debugPrint("NO PATH FOUND, A* FAILED");
     return [];
   }
 

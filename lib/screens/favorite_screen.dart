@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 
 import 'package:tu_world_map_app/models/building.dart';
 import 'package:tu_world_map_app/models/building_type.dart';
@@ -109,7 +108,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
           Icon(
             Icons.favorite_border,
             size: 80,
-            color: _primaryRed.withOpacity(0.3),
+            color: _primaryRed.withValues(alpha: 0.3),
           ),
           const SizedBox(height: 16),
           const Text(
@@ -203,7 +202,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: _primaryRed.withOpacity(0.1),
+            color: _primaryRed.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: const Icon(Icons.favorite, color: _primaryRed, size: 24),

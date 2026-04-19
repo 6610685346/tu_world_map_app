@@ -117,7 +117,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'Are you sure you want to clear all recent locations?',
                     () async {
                       await RecentLocationService().clear();
-                      if (mounted) {
+                      if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Recent locations cleared'),
@@ -140,7 +140,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'Are you sure you want to clear all favorites?',
                     () async {
                       await FavoriteService().clearAll();
-                      if (mounted) {
+                      if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Favorites cleared'),
