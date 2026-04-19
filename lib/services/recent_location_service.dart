@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tu_world_map_app/models/building.dart';
+import 'package:tu_world_map_app/services/settings_service.dart';
 
 class RecentLocationService {
   static final RecentLocationService _instance =
@@ -33,6 +34,7 @@ class RecentLocationService {
   }
 
   void add(Building building) {
+    if (!SettingsService().autoSaveRecent) return;
     _recent.removeWhere((b) => b.id == building.id);
     _recent.insert(0, building);
 
