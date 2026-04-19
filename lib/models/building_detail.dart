@@ -1,15 +1,13 @@
 class BuildingDetail {
   final String buildingId;
-  final String openingTime;
-  final String address;
-  final String phone;
-  final String facebook;
+  final String time;
+  final String detail;
+  final String contact;
 
   BuildingDetail({
     required this.buildingId,
-    required this.openingTime,
-    required this.address,
-    required this.phone,
-    required this.facebook,
+    required this.time,
+    required this.detail,
+    required this.contact,
   });
 }
