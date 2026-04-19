@@ -210,17 +210,24 @@ class _SearchScreenState extends State<SearchScreen> {
 
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: Image.network(
-            building.imageUrl,
-            width: 50,
-            height: 50,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => const Icon(
-              Icons.image_not_supported,
-              size: 40,
-              color: Colors.grey,
-            ),
-          ),
+          child: (building.imageUrl.contains('ibb.co') || (!building.imageUrl.endsWith('.png') && !building.imageUrl.endsWith('.jpg') && !building.imageUrl.endsWith('.jpeg'))) 
+            ? Container(
+                width: 50,
+                height: 50,
+                color: Colors.grey.withValues(alpha: 0.2),
+                child: const Icon(Icons.link, size: 30, color: Colors.grey),
+              )
+            : Image.network(
+                building.imageUrl,
+                width: 50,
+                height: 50,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => const Icon(
+                  Icons.image_not_supported,
+                  size: 40,
+                  color: Colors.grey,
+                ),
+              ),
         ),
 
         title: Text(
