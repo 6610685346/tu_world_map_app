@@ -1241,10 +1241,13 @@ class _MapScreenState extends State<MapScreen> {
           tiltGesturesEnabled: true,
           rotateGesturesEnabled: true,
           myLocationEnabled: false, // We use our own blue dot
+          // Hide the attribution button and use our own attribution text widget instead
+          attributionButtonMargins: const math.Point(-100, -100),
+          logoEnabled: false,
         ),
         // Attribution
         Positioned(
-          bottom: selectedBuilding != null ? 90 : 8,
+          bottom: selectedBuilding != null ? 110 : 8,
           right: 8,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1253,7 +1256,7 @@ class _MapScreenState extends State<MapScreen> {
               borderRadius: BorderRadius.circular(4),
             ),
             child: const Text(
-              '© OpenStreetMap contributors',
+              '© MapLibre | OpenStreetMap contributors',
               style: TextStyle(fontSize: 10, color: Colors.black54),
             ),
           ),
@@ -1390,7 +1393,7 @@ class _MapScreenState extends State<MapScreen> {
   /// ---------------------
   /// Layout: Steering joystick on the left, Accelerate/Brake buttons on the right.
   Widget _buildMockControls() {
-    final bottomOffset = selectedBuilding != null ? 110.0 : 24.0;
+    final bottomOffset = selectedBuilding != null ? 140.0 : 35.0;
 
     return Positioned(
       bottom: bottomOffset,
