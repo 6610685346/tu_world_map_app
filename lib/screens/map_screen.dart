@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as maplibre;
 import 'package:latlong2/latlong.dart';
@@ -126,9 +128,21 @@ class _MapScreenState extends State<MapScreen> {
   /// =====================
   Future<void> _loadStyleJson() async {
     try {
-      final jsonString = await rootBundle.loadString(
+      var jsonString = await rootBundle.loadString(
         'assets/styles/versatiles-colorful.json',
       );
+
+      // On Flutter Web, sprite names containing colons (e.g. "basics:icon-bank")
+      // get double-URL-encoded (%253A instead of %3A) causing 404 errors.
+      // Strip the sprite reference on web — text labels still work, only icons
+      // are removed. Native platforms keep sprites since they handle colons fine.
+      if (kIsWeb) {
+        final parsed = json.decode(jsonString) as Map<String, dynamic>;
+        parsed.remove('sprite');
+        jsonString = json.encode(parsed);
+        _log.info('Removed sprite reference for Flutter Web compatibility');
+      }
+
       setState(() {
         _styleJson = jsonString;
       });
@@ -235,6 +249,14 @@ class _MapScreenState extends State<MapScreen> {
       // Add user location blue dot source
       await _addUserLocationSource();
 
+      // Enhance POI labels from tile data (bus stops, parking, shops, etc.)
+      await _enhancePoiLayers();
+
+      // Add building name labels from app database
+      if (buildings.isNotEmpty) {
+        await _addBuildingLabels();
+      }
+
       // If a building was already selected before the map loaded, highlight it
       if (selectedBuildingId != null) {
         await _updateSelectedBuilding();
@@ -340,6 +362,162 @@ class _MapScreenState extends State<MapScreen> {
     } catch (e, stackTrace) {
       _log.severe('Error adding building source', e, stackTrace);
       rethrow;
+    }
+  }
+
+  /// =====================
+  /// Enhance Tile-Data POI Layers
+  /// =====================
+  /// Modifies the existing style POI layers to show text labels (name)
+  /// at lower zoom levels with higher opacity, similar to OpenStreetMap.
+  Future<void> _enhancePoiLayers() async {
+    try {
+      // List of existing POI layer IDs from the VersaTiles style
+      const poiLayers = [
+        'poi-amenity',
+        'poi-leisure',
+        'poi-tourism',
+        'poi-shop',
+        'poi-man_made',
+        'poi-historic',
+        'poi-emergency',
+        'poi-highway',
+        'poi-office',
+      ];
+
+      for (final layerId in poiLayers) {
+        try {
+          // Add text labels and increase icon/text opacity at lower zoom
+          await _mapController.setLayerProperties(
+            layerId,
+            maplibre.SymbolLayerProperties(
+              textField: [maplibre.Expressions.get, 'name'],
+              textSize: [
+                maplibre.Expressions.interpolate,
+                ['linear'],
+                [maplibre.Expressions.zoom],
+                14, 9,
+                16, 11,
+                18, 13,
+              ],
+              textOffset: [
+                maplibre.Expressions.literal,
+                [0, 1.5],
+              ],
+              textAnchor: 'top',
+              textMaxWidth: 8,
+              textOptional: true,
+              iconAllowOverlap: false,
+              textAllowOverlap: false,
+              iconOpacity: [
+                maplibre.Expressions.interpolate,
+                ['linear'],
+                [maplibre.Expressions.zoom],
+                14, 0.0,
+                15, 0.6,
+                17, 1.0,
+              ],
+              textOpacity: [
+                maplibre.Expressions.interpolate,
+                ['linear'],
+                [maplibre.Expressions.zoom],
+                14, 0.0,
+                15, 0.7,
+                17, 1.0,
+              ],
+              textColor: '#333333',
+              textHaloColor: '#FFFFFF',
+              textHaloWidth: 1.5,
+            ),
+          );
+        } catch (e) {
+          // Layer might not exist in this tile region — skip silently
+          _log.fine('Could not enhance POI layer $layerId: $e');
+        }
+      }
+
+      _log.info('POI layers enhanced with text labels');
+    } catch (e, stackTrace) {
+      _log.severe('Error enhancing POI layers', e, stackTrace);
+    }
+  }
+
+  /// =====================
+  /// Campus Building Name Labels (from app DB)
+  /// =====================
+  /// Creates a GeoJSON point source with building centroids and a symbol
+  /// layer that renders building names on the map.
+  Future<void> _addBuildingLabels() async {
+    try {
+      // Build GeoJSON features from the app's building database
+      final features = <Map<String, dynamic>>[];
+
+      for (final building in buildings) {
+        if (building.polygons.isEmpty) continue;
+
+        final centroid = polygonCentroid(building.polygons.first);
+
+        features.add({
+          'type': 'Feature',
+          'properties': {
+            'name': building.name,
+            'type': building.type.name,
+          },
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [centroid.longitude, centroid.latitude],
+          },
+        });
+      }
+
+      final geoJson = {'type': 'FeatureCollection', 'features': features};
+
+      // Add source
+      await _mapController.addSource(
+        'app-building-labels',
+        maplibre.GeojsonSourceProperties(data: geoJson),
+      );
+
+      // Add symbol layer for building names
+      await _mapController.addLayer(
+        'app-building-labels',
+        'app-building-labels-text',
+        maplibre.SymbolLayerProperties(
+          textField: [maplibre.Expressions.get, 'name'],
+          textSize: [
+            maplibre.Expressions.interpolate,
+            ['linear'],
+            [maplibre.Expressions.zoom],
+            14, 0,     // invisible at z14
+            15, 10,    // small text at z15
+            17, 13,    // medium at z17
+            19, 15,    // full at z19
+          ],
+          textFont: [
+            maplibre.Expressions.literal,
+            ['noto_sans_regular'],
+          ],
+          textAnchor: 'center',
+          textMaxWidth: 8,
+          textAllowOverlap: false,
+          textIgnorePlacement: false,
+          textColor: '#5D4037',      // Brown to match app theme
+          textHaloColor: '#FFFFFF',
+          textHaloWidth: 2,
+          textOpacity: [
+            maplibre.Expressions.interpolate,
+            ['linear'],
+            [maplibre.Expressions.zoom],
+            14, 0.0,
+            15.5, 0.8,
+            17, 1.0,
+          ],
+        ),
+      );
+
+      _log.info('Building labels added (${features.length} buildings)');
+    } catch (e, stackTrace) {
+      _log.severe('Error adding building labels', e, stackTrace);
     }
   }
 
