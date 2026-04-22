@@ -85,7 +85,7 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
                         IconButton(
                           icon: const Icon(
                             Icons.location_on,
-                            color: const Color(0xFFD32F2F),
+                            color: Color(0xFFD32F2F),
                           ),
                           onPressed: widget.onViewOnMap,
                         ),
