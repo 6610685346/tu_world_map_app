@@ -38,9 +38,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFFBF5), 
+        backgroundColor: const Color(0xFFFFFBF5),
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         toolbarHeight: 90,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Divider(
+            height: 1,
+            thickness: 1,
+            color: const Color(0xFF6D4C41).withValues(alpha: 0.1),
+          ),
+        ),
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,

@@ -324,7 +324,17 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
         backgroundColor: const Color(0xFFFFFBF5),
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         iconTheme: const IconThemeData(color: Color(0xFF6D4C41)),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Divider(
+            height: 1,
+            thickness: 1,
+            color: const Color(0xFF6D4C41).withValues(alpha: 0.1),
+          ),
+        ),
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())

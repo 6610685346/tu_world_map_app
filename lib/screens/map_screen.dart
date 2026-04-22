@@ -1126,7 +1126,17 @@ class _MapScreenState extends State<MapScreen> {
       ),
       backgroundColor: AppColors.cream,
       elevation: 0,
-      centerTitle: true,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+      centerTitle: false,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1.0),
+        child: Divider(
+          height: 1,
+          thickness: 1,
+          color: AppColors.brown.withValues(alpha: 0.1),
+        ),
+      ),
       actions: [
         if (selectedBuilding != null)
           IconButton(

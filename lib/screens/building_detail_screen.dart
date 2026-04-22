@@ -30,7 +30,7 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
 
   Future<void> _launchWebImage() async {
     if (widget.building.imageUrl.isEmpty) return;
-    
+
     final Uri url = Uri.parse(widget.building.imageUrl);
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       if (mounted) {
@@ -45,10 +45,11 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
   Widget build(BuildContext context) {
     final isFavorite = FavoriteService().isFavorite(widget.building);
     // Is it likely an HTML page like ibb.co?
-    final bool isWebLink = widget.building.imageUrl.contains('ibb.co') || 
-                           (!widget.building.imageUrl.endsWith('.png') && 
-                            !widget.building.imageUrl.endsWith('.jpg') && 
-                            !widget.building.imageUrl.endsWith('.jpeg'));
+    final bool isWebLink =
+        widget.building.imageUrl.contains('ibb.co') ||
+        (!widget.building.imageUrl.endsWith('.png') &&
+            !widget.building.imageUrl.endsWith('.jpg') &&
+            !widget.building.imageUrl.endsWith('.jpeg'));
 
     return Scaffold(
       backgroundColor: const Color(0xFFFFFBF5),
@@ -57,7 +58,9 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
           future: detailFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: Colors.red));
+              return const Center(
+                child: CircularProgressIndicator(color: Colors.red),
+              );
             }
 
             if (!snapshot.hasData) {
@@ -88,15 +91,15 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
                         ),
 
                         Expanded(
-                            child: Text(
-                              widget.building.name,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF3E2723),
-                              ),
-                              textAlign: TextAlign.center,
+                          child: Text(
+                            widget.building.name,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF3E2723),
                             ),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
 
                         // Favorite button
@@ -114,7 +117,11 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
                       ],
                     ),
                   ),
-
+                  Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: const Color(0xFF6D4C41).withValues(alpha: 0.1),
+                  ),
                   const SizedBox(height: 12),
 
                   // IMAGE
@@ -131,17 +138,25 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Icon(Icons.image, size: 64, color: Colors.grey),
+                                    const Icon(
+                                      Icons.image,
+                                      size: 64,
+                                      color: Colors.grey,
+                                    ),
                                     const SizedBox(height: 16),
                                     ElevatedButton.icon(
                                       onPressed: _launchWebImage,
                                       icon: const Icon(Icons.open_in_browser),
-                                      label: const Text('View Full Image on Web'),
+                                      label: const Text(
+                                        'View Full Image on Web',
+                                      ),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFFD32F2F),
+                                        backgroundColor: const Color(
+                                          0xFFD32F2F,
+                                        ),
                                         foregroundColor: Colors.white,
                                       ),
-                                    )
+                                    ),
                                   ],
                                 ),
                               )
@@ -156,19 +171,30 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
                                       width: double.infinity,
                                       color: Colors.grey.withValues(alpha: 0.2),
                                       child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
-                                          const Icon(Icons.broken_image, size: 64, color: Colors.grey),
+                                          const Icon(
+                                            Icons.broken_image,
+                                            size: 64,
+                                            color: Colors.grey,
+                                          ),
                                           const SizedBox(height: 8),
                                           ElevatedButton.icon(
                                             onPressed: _launchWebImage,
-                                            icon: const Icon(Icons.open_in_browser),
-                                            label: const Text('Open in Browser'),
+                                            icon: const Icon(
+                                              Icons.open_in_browser,
+                                            ),
+                                            label: const Text(
+                                              'Open in Browser',
+                                            ),
                                             style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(0xFFD32F2F),
+                                              backgroundColor: const Color(
+                                                0xFFD32F2F,
+                                              ),
                                               foregroundColor: Colors.white,
                                             ),
-                                          )
+                                          ),
                                         ],
                                       ),
                                     ),
