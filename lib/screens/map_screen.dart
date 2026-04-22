@@ -81,9 +81,11 @@ class _MapScreenState extends State<MapScreen> {
   double _heading = 0;
   LatLng? _prevLocation; // for heading estimation from movement
 
-  // Joystick state
-  Offset _joystickDelta = Offset.zero;
+  // Joystick state (racing-game style)
+  Offset _joystickDelta = Offset.zero; // direction only
   Timer? _joystickTimer;
+  bool _isAccelerating = false;
+  bool _isReversing = false;
 
   /// =====================
   /// Lifecycle
@@ -604,8 +606,8 @@ class _MapScreenState extends State<MapScreen> {
   void _handleLocationUpdate(LatLng rawLocation, {double? gpsHeading}) {
     LatLng displayLocation = rawLocation;
 
-    // Apply snap-to-path if we have an active route
-    if (currentRoute.isNotEmpty && !_isCustomRoute) {
+    // Apply snap-to-path if we have an active route (skip for mock GPS — no jitter)
+    if (currentRoute.isNotEmpty && !_isCustomRoute && !_mockService.enabled) {
       displayLocation = SnapToPathService.snap(rawLocation, currentRoute);
     }
 
@@ -867,16 +869,15 @@ class _MapScreenState extends State<MapScreen> {
           tooltip: 'Plan Route',
           onPressed: _openRoutePicker,
         ),
-        // Quick navigate from current location
-        IconButton(
-          icon: const Icon(Icons.directions, color: AppColors.primaryRed),
-          tooltip: 'Navigate from here',
-          onPressed: () {
-            if (selectedBuilding != null) {
+        // Quick navigate from current location (only visible when a target is selected)
+        if (selectedBuilding != null)
+          IconButton(
+            icon: const Icon(Icons.directions, color: AppColors.primaryRed),
+            tooltip: 'Navigate from here',
+            onPressed: () {
               startNavigation(selectedBuilding!);
-            }
-          },
-        ),
+            },
+          ),
         // Current location button
         IconButton(
           icon: const Icon(Icons.my_location, color: AppColors.primaryRed),
@@ -1092,8 +1093,8 @@ class _MapScreenState extends State<MapScreen> {
               ],
             ),
           ),
-        // Joystick overlay (only when mock mode is active)
-        if (_mockService.enabled) _buildJoystick(),
+        // Mock controls overlay (only when mock mode is active)
+        if (_mockService.enabled) _buildMockControls(),
         // Selected building info card
         if (selectedBuilding != null) _buildSelectedCard(),
       ],
@@ -1101,19 +1102,42 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   /// ---------------------
-  /// Joystick Widget
+  /// Mock Controls (Racing-Game Style)
   /// ---------------------
-  Widget _buildJoystick() {
-    const double baseSize = 120;
-    const double knobSize = 44;
-    const double maxDisplacement = (baseSize - knobSize) / 2;
+  /// Layout: Steering joystick on the left, Accelerate/Brake buttons on the right.
+  Widget _buildMockControls() {
+    final bottomOffset = selectedBuilding != null ? 110.0 : 24.0;
 
     return Positioned(
-      bottom: selectedBuilding != null ? 110 : 24,
-      left: 16,
+      bottom: bottomOffset,
+      left: 0,
+      right: 0,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            // LEFT: Steering joystick (direction only)
+            _buildSteeringWheel(),
+            // RIGHT: Accelerate + Brake pedals
+            _buildPedals(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Steering joystick — controls facing direction only, no movement.
+  Widget _buildSteeringWheel() {
+    const double baseSize = 110;
+    const double knobSize = 40;
+    const double maxDisplacement = (baseSize - knobSize) / 2;
+
+    return SizedBox(
+      width: baseSize,
+      height: baseSize,
       child: Container(
-        width: baseSize,
-        height: baseSize,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: Colors.black.withValues(alpha: 0.15),
@@ -1124,17 +1148,31 @@ class _MapScreenState extends State<MapScreen> {
         ),
         child: GestureDetector(
           onPanStart: (_) {
+            // Start a timer that continuously updates heading based on joystick position
             _joystickTimer?.cancel();
             _joystickTimer = Timer.periodic(
               const Duration(milliseconds: 50),
               (_) {
                 if (_joystickDelta == Offset.zero) return;
-                // Scale: use mock service speed preset
-                final scale = _mockService.metersPerTick / maxDisplacement;
-                _mockService.moveBy(
-                  _joystickDelta.dx * scale,
-                  -_joystickDelta.dy * scale, // invert Y (screen down = south)
+                // Compute heading from joystick direction
+                // dx = east/west, dy = north/south (inverted screen Y)
+                final headingRad = math.atan2(
+                  _joystickDelta.dx,
+                  -_joystickDelta.dy, // screen up = north
                 );
+                final headingDeg = (headingRad * 180 / math.pi) % 360;
+                _mockService.setHeading(headingDeg);
+
+                // If accelerating or reversing, move in the heading direction
+                if (_isAccelerating || _isReversing) {
+                  final speed = _mockService.metersPerTick;
+                  final direction = _isReversing ? -1.0 : 1.0;
+                  final rad = headingDeg * math.pi / 180;
+                  _mockService.moveBy(
+                    math.sin(rad) * speed * direction,
+                    math.cos(rad) * speed * direction,
+                  );
+                }
               },
             );
           },
@@ -1167,13 +1205,11 @@ class _MapScreenState extends State<MapScreen> {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // Directional arrows
-              ...[
-                const Positioned(top: 8, child: Icon(Icons.arrow_drop_up, color: Colors.white54, size: 20)),
-                const Positioned(bottom: 8, child: Icon(Icons.arrow_drop_down, color: Colors.white54, size: 20)),
-                const Positioned(left: 8, child: Icon(Icons.arrow_left, color: Colors.white54, size: 20)),
-                const Positioned(right: 8, child: Icon(Icons.arrow_right, color: Colors.white54, size: 20)),
-              ],
+              // N/S/E/W labels
+              const Positioned(top: 6, child: Text('N', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold))),
+              const Positioned(bottom: 6, child: Text('S', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold))),
+              const Positioned(left: 8, child: Text('W', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold))),
+              const Positioned(right: 8, child: Text('E', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold))),
               // Draggable knob
               Transform.translate(
                 offset: _joystickDelta,
@@ -1190,10 +1226,13 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                     ],
                   ),
-                  child: Icon(
-                    Icons.navigation,
-                    color: Colors.green.shade700,
-                    size: 22,
+                  child: Transform.rotate(
+                    angle: _mockService.heading * math.pi / 180,
+                    child: Icon(
+                      Icons.navigation,
+                      color: Colors.green.shade700,
+                      size: 20,
+                    ),
                   ),
                 ),
               ),
@@ -1202,6 +1241,130 @@ class _MapScreenState extends State<MapScreen> {
         ),
       ),
     );
+  }
+
+  /// Accelerate and Brake pedal buttons (right side).
+  Widget _buildPedals() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Accelerate button
+        GestureDetector(
+          onTapDown: (_) {
+            setState(() => _isAccelerating = true);
+            // If no joystick active, start a movement timer using current heading
+            _ensureMovementTimer();
+          },
+          onTapUp: (_) {
+            setState(() => _isAccelerating = false);
+            _stopMovementIfIdle();
+          },
+          onTapCancel: () {
+            setState(() => _isAccelerating = false);
+            _stopMovementIfIdle();
+          },
+          child: Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _isAccelerating
+                  ? Colors.green.shade600
+                  : Colors.green.shade700.withValues(alpha: 0.7),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.5),
+                width: 2,
+              ),
+              boxShadow: _isAccelerating
+                  ? [
+                      BoxShadow(
+                        color: Colors.green.withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                      ),
+                    ]
+                  : [],
+            ),
+            child: const Icon(
+              Icons.arrow_upward,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Brake / Reverse button
+        GestureDetector(
+          onTapDown: (_) {
+            setState(() => _isReversing = true);
+            _ensureMovementTimer();
+          },
+          onTapUp: (_) {
+            setState(() => _isReversing = false);
+            _stopMovementIfIdle();
+          },
+          onTapCancel: () {
+            setState(() => _isReversing = false);
+            _stopMovementIfIdle();
+          },
+          child: Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _isReversing
+                  ? AppColors.primaryRed
+                  : AppColors.primaryRed.withValues(alpha: 0.7),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.5),
+                width: 2,
+              ),
+              boxShadow: _isReversing
+                  ? [
+                      BoxShadow(
+                        color: Colors.red.withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                      ),
+                    ]
+                  : [],
+            ),
+            child: const Icon(
+              Icons.arrow_downward,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Start the movement timer if pedals are pressed without joystick.
+  void _ensureMovementTimer() {
+    if (_joystickTimer != null) return; // joystick already running
+    _joystickTimer?.cancel();
+    _joystickTimer = Timer.periodic(
+      const Duration(milliseconds: 50),
+      (_) {
+        if (!_isAccelerating && !_isReversing) return;
+        final speed = _mockService.metersPerTick;
+        final direction = _isReversing ? -1.0 : 1.0;
+        final rad = _mockService.heading * math.pi / 180;
+        _mockService.moveBy(
+          math.sin(rad) * speed * direction,
+          math.cos(rad) * speed * direction,
+        );
+      },
+    );
+  }
+
+  /// Stop the movement timer if neither pedal is pressed and joystick is idle.
+  void _stopMovementIfIdle() {
+    if (!_isAccelerating && !_isReversing && _joystickDelta == Offset.zero) {
+      _joystickTimer?.cancel();
+      _joystickTimer = null;
+    }
   }
 
   /// ---------------------

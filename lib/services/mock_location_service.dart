@@ -85,6 +85,12 @@ class MockLocationService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Set heading explicitly (from steering wheel).
+  void setHeading(double degrees) {
+    _heading = degrees % 360;
+    notifyListeners();
+  }
+
   /// Enable mock mode, optionally initializing at a given position.
   void enable({LatLng? initialPosition, bool auto = false}) {
     _enabled = true;
