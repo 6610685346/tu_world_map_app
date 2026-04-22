@@ -102,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFD32F2F),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 30),
+                          padding: const EdgeInsets.symmetric(vertical: 20),
                           elevation: 3,
                           shadowColor: Colors.red.withValues(alpha: 0.3),
                           shape: RoundedRectangleBorder(
@@ -112,7 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: const Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(CupertinoIcons.location_solid, size: 28),
+                            Icon(CupertinoIcons.location_solid, size: 24),
                             SizedBox(height: 6),
                             Text(
                               "View Map",
@@ -131,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFFF9800),
                           foregroundColor: const Color(0xFF3E2723),
-                          padding: const EdgeInsets.symmetric(vertical: 30),
+                          padding: const EdgeInsets.symmetric(vertical: 20),
                           elevation: 3,
                           shadowColor: Colors.orange.withValues(alpha: 0.3),
                           shape: RoundedRectangleBorder(
@@ -141,7 +141,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: const Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.search, size: 28),
+                            Icon(Icons.search, size: 24),
                             SizedBox(height: 6),
                             Text(
                               "Search",
@@ -154,7 +154,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
 
-                const SizedBox(height: 40),
+                const SizedBox(height: 32),
 
                 const Text(
                   "Recent Locations",
@@ -167,7 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 10),
                 RecentLocationsSection(onTabChange: widget.onTabChange),
 
-                const SizedBox(height: 40),
+                const SizedBox(height: 32),
 
                 const Text(
                   "Recommend Locations",
@@ -209,7 +209,34 @@ class _RecentLocationsSectionState extends State<RecentLocationsSection> {
     final List<Building> latestThree = recent.take(3).toList();
 
     if (recent.isEmpty) {
-      return const Text("No recent locations.");
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                Icons.history_toggle_off_rounded,
+                size: 48,
+                color: const Color(0xFF6D4C41).withValues(alpha: 0.3),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "No recent locations",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF8D6E63),
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                "Buildings you visit will appear here",
+                style: TextStyle(fontSize: 13, color: Color(0xFF5D4037)),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return Column(
@@ -274,7 +301,34 @@ class _PopularLocationsSectionState extends State<PopularLocationsSection> {
   @override
   Widget build(BuildContext context) {
     if (popular.isEmpty) {
-      return const Text("No popular locations.");
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                Icons.map_outlined,
+                size: 48,
+                color: const Color(0xFF6D4C41).withValues(alpha: 0.3),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "No recommendations",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF8D6E63),
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                "Explore the map to find interesting places",
+                style: TextStyle(fontSize: 13, color: Color(0xFF5D4037)),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return Column(
