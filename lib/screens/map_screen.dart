@@ -52,10 +52,10 @@ class _MapScreenState extends State<MapScreen> {
 
   // Campus bounds (for clamping)
   // SW corner, NE corner
-  static const double _boundsSwLat = 14.0685;
-  static const double _boundsSwLng = 100.5893;
-  static const double _boundsNeLat = 14.0821;
-  static const double _boundsNeLng = 100.6200;
+  static const double _boundsSwLat = 14.055335;
+  static const double _boundsSwLng = 100.57105;
+  static const double _boundsNeLat = 14.089425;
+  static const double _boundsNeLng = 100.64185;
 
   // State
   List<Building> buildings = [];
@@ -73,7 +73,8 @@ class _MapScreenState extends State<MapScreen> {
   bool _isRouting = false;
   bool _mapReady = false;
   bool _isCustomRoute = false; // true when using building-to-building route
-  bool _userInsideCampus = false; // whether real GPS is inside university bounds
+  bool _userInsideCampus =
+      false; // whether real GPS is inside university bounds
   String? _styleJson;
 
   StreamSubscription<Position>? _positionStream;
@@ -82,6 +83,9 @@ class _MapScreenState extends State<MapScreen> {
   // Heading (degrees, 0=north, clockwise)
   double _heading = 0;
   LatLng? _prevLocation; // for heading estimation from movement
+
+  // Current camera zoom (updated on every camera-idle event)
+  double _currentZoom = 14.0;
 
   // Joystick state (racing-game style)
   Offset _joystickDelta = Offset.zero; // direction only
@@ -396,9 +400,12 @@ class _MapScreenState extends State<MapScreen> {
                 maplibre.Expressions.interpolate,
                 ['linear'],
                 [maplibre.Expressions.zoom],
-                14, 9,
-                16, 11,
-                18, 13,
+                14,
+                9,
+                16,
+                11,
+                18,
+                13,
               ],
               textOffset: [
                 maplibre.Expressions.literal,
@@ -413,17 +420,23 @@ class _MapScreenState extends State<MapScreen> {
                 maplibre.Expressions.interpolate,
                 ['linear'],
                 [maplibre.Expressions.zoom],
-                14, 0.0,
-                15, 0.6,
-                17, 1.0,
+                14,
+                0.0,
+                15,
+                0.6,
+                17,
+                1.0,
               ],
               textOpacity: [
                 maplibre.Expressions.interpolate,
                 ['linear'],
                 [maplibre.Expressions.zoom],
-                14, 0.0,
-                15, 0.7,
-                17, 1.0,
+                14,
+                0.0,
+                15,
+                0.7,
+                17,
+                1.0,
               ],
               textColor: '#333333',
               textHaloColor: '#FFFFFF',
@@ -459,10 +472,7 @@ class _MapScreenState extends State<MapScreen> {
 
         features.add({
           'type': 'Feature',
-          'properties': {
-            'name': building.name,
-            'type': building.type.name,
-          },
+          'properties': {'name': building.name, 'type': building.type.name},
           'geometry': {
             'type': 'Point',
             'coordinates': [centroid.longitude, centroid.latitude],
@@ -488,10 +498,10 @@ class _MapScreenState extends State<MapScreen> {
             maplibre.Expressions.interpolate,
             ['linear'],
             [maplibre.Expressions.zoom],
-            14, 0,     // invisible at z14
-            15, 10,    // small text at z15
-            17, 13,    // medium at z17
-            19, 15,    // full at z19
+            14, 0, // invisible at z14
+            15, 10, // small text at z15
+            17, 13, // medium at z17
+            19, 15, // full at z19
           ],
           textFont: [
             maplibre.Expressions.literal,
@@ -501,16 +511,19 @@ class _MapScreenState extends State<MapScreen> {
           textMaxWidth: 8,
           textAllowOverlap: false,
           textIgnorePlacement: false,
-          textColor: '#5D4037',      // Brown to match app theme
+          textColor: '#5D4037', // Brown to match app theme
           textHaloColor: '#FFFFFF',
           textHaloWidth: 2,
           textOpacity: [
             maplibre.Expressions.interpolate,
             ['linear'],
             [maplibre.Expressions.zoom],
-            14, 0.0,
-            15.5, 0.8,
-            17, 1.0,
+            14,
+            0.0,
+            15.5,
+            0.8,
+            17,
+            1.0,
           ],
         ),
       );
@@ -532,10 +545,7 @@ class _MapScreenState extends State<MapScreen> {
       await _mapController.addSource(
         routeSourceId,
         maplibre.GeojsonSourceProperties(
-          data: {
-            'type': 'FeatureCollection',
-            'features': [],
-          },
+          data: {'type': 'FeatureCollection', 'features': []},
         ),
       );
 
@@ -612,10 +622,7 @@ class _MapScreenState extends State<MapScreen> {
       for (final polygon in selBuilding.polygons) {
         features.add({
           'type': 'Feature',
-          'properties': {
-            'id': selBuilding.id,
-            'name': selBuilding.name,
-          },
+          'properties': {'id': selBuilding.id, 'name': selBuilding.name},
           'geometry': {
             'type': 'Polygon',
             'coordinates': [
@@ -721,6 +728,97 @@ class _MapScreenState extends State<MapScreen> {
         pos.longitude <= _boundsNeLng;
   }
 
+  /// Called whenever the camera becomes idle (pan/zoom ends).
+  ///
+  /// MapLibre's [cameraTargetBounds] only constrains the camera *center* to a
+  /// fixed rectangle — it does NOT shrink that rectangle as the user zooms in.
+  /// The result is that at high zoom levels the camera center can be placed near
+  /// the edge of the campus rectangle, making half the viewport show area outside
+  /// campus.  At low zoom levels the viewport is larger than the rectangle, so
+  /// the SDK fights itself and produces jittery over-clamping.
+  ///
+  /// The correct approach: compute how many degrees of lat/lng a half-screen
+  /// occupies at the *current* zoom level and shrink the allowed center region
+  /// by that inset on every side.  If the current center violates the shrunken
+  /// box, snap it back in one smooth animation.
+  void _onCameraIdle() {
+    if (!_mapReady) return;
+
+    final position = _mapController.cameraPosition;
+    if (position == null) return;
+
+    final zoom = position.zoom;
+    _currentZoom = zoom;
+
+    final centerLat = position.target.latitude;
+    final centerLng = position.target.longitude;
+
+    // At zoom level z, one tile covers 360°/2^z of longitude.
+    // A standard 256-px tile displayed on a ~390-pt-wide screen means roughly
+    // (screenWidthTiles / 2) tiles are visible on each side of the center.
+    // We use a conservative half-viewport estimate in degrees so the full
+    // visible area stays inside the campus bounds.
+    //
+    // halfLng° of longitude per half-screen  = 360 / 2^zoom  * (viewport_px/2 / 256)
+    // halfLat° ≈ halfLng (Mercator distortion is negligible at campus scale)
+    //
+    // We use a fixed logical half-screen size of 220 pt (safe for phones/tablets).
+    const double halfScreenPx = 220.0;
+    final double tilesPerDegLng = math.pow(2, zoom) / 360.0;
+    final double halfLng = halfScreenPx / 256.0 / tilesPerDegLng;
+
+    // Latitude scaling: Mercator stretches latitude near the equator edge;
+    // at ~14° N the correction is tiny, but apply it for correctness.
+    final double latRad = centerLat * math.pi / 180.0;
+    final double halfLat = halfLng * math.cos(latRad);
+
+    // Inset the full campus bounds by the half-viewport on every side.
+    final double minLat = _boundsSwLat + halfLat;
+    final double maxLat = _boundsNeLat - halfLat;
+    final double minLng = _boundsSwLng + halfLng;
+    final double maxLng = _boundsNeLng - halfLng;
+
+    // If the inset box has collapsed (user zoomed out further than the campus
+    // area fills the screen), clamp to the campus center so we don't invert
+    // the constraint.
+    final double clampedMinLat = minLat < maxLat
+        ? minLat
+        : (_boundsSwLat + _boundsNeLat) / 2;
+    final double clampedMaxLat = minLat < maxLat
+        ? maxLat
+        : (_boundsSwLat + _boundsNeLat) / 2;
+    final double clampedMinLng = minLng < maxLng
+        ? minLng
+        : (_boundsSwLng + _boundsNeLng) / 2;
+    final double clampedMaxLng = minLng < maxLng
+        ? maxLng
+        : (_boundsSwLng + _boundsNeLng) / 2;
+
+    // Clamp the current center into the zoom-adjusted box.
+    final double newLat = centerLat.clamp(clampedMinLat, clampedMaxLat);
+    final double newLng = centerLng.clamp(clampedMinLng, clampedMaxLng);
+
+    // Only animate if the center is actually out of bounds (avoid jitter).
+    const double epsilon = 1e-7;
+    if ((newLat - centerLat).abs() > epsilon ||
+        (newLng - centerLng).abs() > epsilon) {
+      try {
+        _mapController.animateCamera(
+          maplibre.CameraUpdate.newCameraPosition(
+            maplibre.CameraPosition(
+              target: maplibre.LatLng(newLat, newLng),
+              zoom: zoom,
+              bearing: position.bearing,
+              tilt: position.tilt,
+            ),
+          ),
+        );
+      } catch (e) {
+        _log.warning('Boundary clamp animation failed: $e');
+      }
+    }
+  }
+
   /// =====================
   /// Location (Real-Time)
   /// =====================
@@ -742,41 +840,38 @@ class _MapScreenState extends State<MapScreen> {
     );
 
     _positionStream =
-        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
-          (Position position) async {
-            // Skip real GPS updates when mock mode is active
-            if (_mockService.enabled) return;
+        Geolocator.getPositionStream(
+          locationSettings: locationSettings,
+        ).listen((Position position) async {
+          // Skip real GPS updates when mock mode is active
+          if (_mockService.enabled) return;
 
-            final newLocation = LatLng(position.latitude, position.longitude);
-            final inside = _isInsideCampus(newLocation);
+          final newLocation = LatLng(position.latitude, position.longitude);
+          final inside = _isInsideCampus(newLocation);
 
-            // Auto-enable mock GPS if user is outside campus
-            if (!inside && !_userInsideCampus && !_mockService.enabled) {
-              _mockService.enable(
-                initialPosition: const LatLng(14.0723, 100.6034), // campus center
-                auto: true,
-              );
-              setState(() {
-                _userInsideCampus = false;
-              });
-              return;
-            }
-
-            // If user comes back inside campus, disable auto-mock
-            if (inside && _mockService.autoEnabled) {
-              _mockService.disable();
-            }
-
-            setState(() {
-              _userInsideCampus = inside;
-            });
-
-            _handleLocationUpdate(
-              newLocation,
-              gpsHeading: position.heading,
+          // Auto-enable mock GPS if user is outside campus
+          if (!inside && !_userInsideCampus && !_mockService.enabled) {
+            _mockService.enable(
+              initialPosition: const LatLng(14.0723, 100.6034), // campus center
+              auto: true,
             );
-          },
-        );
+            setState(() {
+              _userInsideCampus = false;
+            });
+            return;
+          }
+
+          // If user comes back inside campus, disable auto-mock
+          if (inside && _mockService.autoEnabled) {
+            _mockService.disable();
+          }
+
+          setState(() {
+            _userInsideCampus = inside;
+          });
+
+          _handleLocationUpdate(newLocation, gpsHeading: position.heading);
+        });
   }
 
   /// Unified location update handler for both real GPS and mock GPS.
@@ -970,7 +1065,9 @@ class _MapScreenState extends State<MapScreen> {
         _routeOriginBuilding = result.origin;
         selectedBuilding = result.destination;
         selectedBuildingId = result.destination.id;
-        selectedBuildingCenter = polygonCentroid(result.destination.polygons.first);
+        selectedBuildingCenter = polygonCentroid(
+          result.destination.polygons.first,
+        );
       });
       _updateSelectedBuilding();
       await startNavigation(result.destination, customStart: originCenter);
@@ -980,7 +1077,9 @@ class _MapScreenState extends State<MapScreen> {
         _routeOriginBuilding = null;
         selectedBuilding = result.destination;
         selectedBuildingId = result.destination.id;
-        selectedBuildingCenter = polygonCentroid(result.destination.polygons.first);
+        selectedBuildingCenter = polygonCentroid(
+          result.destination.polygons.first,
+        );
       });
       _updateSelectedBuilding();
       await startNavigation(result.destination);
@@ -1083,7 +1182,9 @@ class _MapScreenState extends State<MapScreen> {
                   ? Colors.green
                   : AppColors.brown.withValues(alpha: 0.5),
             ),
-            tooltip: _mockService.enabled ? 'Disable Mock GPS' : 'Enable Mock GPS',
+            tooltip: _mockService.enabled
+                ? 'Disable Mock GPS'
+                : 'Enable Mock GPS',
             onPressed: () {
               _mockService.toggle(initialPosition: currentLocation);
               setState(() {});
@@ -1110,9 +1211,7 @@ class _MapScreenState extends State<MapScreen> {
         ),
       ),
       child: const Center(
-        child: CircularProgressIndicator(
-          color: AppColors.primaryRed,
-        ),
+        child: CircularProgressIndicator(color: AppColors.primaryRed),
       ),
     );
   }
@@ -1131,16 +1230,11 @@ class _MapScreenState extends State<MapScreen> {
             target: maplibre.LatLng(14.0683, 100.6034),
             zoom: 14,
           ),
-          minMaxZoomPreference: const maplibre.MinMaxZoomPreference(
-            13,
-            22,
-          ),
-          cameraTargetBounds: maplibre.CameraTargetBounds(
-            maplibre.LatLngBounds(
-              southwest: const maplibre.LatLng(_boundsSwLat, _boundsSwLng),
-              northeast: const maplibre.LatLng(_boundsNeLat, _boundsNeLng),
-            ),
-          ),
+          minMaxZoomPreference: const maplibre.MinMaxZoomPreference(13, 22),
+          // NOTE: cameraTargetBounds is intentionally omitted here.
+          // Boundary enforcement is handled in _onCameraIdle() with a
+          // zoom-aware inset so the visible viewport never leaves the campus.
+          onCameraIdle: _onCameraIdle,
           trackCameraPosition: true,
           scrollGesturesEnabled: true,
           zoomGesturesEnabled: true,
@@ -1174,7 +1268,10 @@ class _MapScreenState extends State<MapScreen> {
               children: [
                 // Badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: _mockService.autoEnabled
                         ? Colors.orange.shade700
@@ -1191,7 +1288,9 @@ class _MapScreenState extends State<MapScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        _mockService.autoEnabled ? Icons.location_off : Icons.gamepad,
+                        _mockService.autoEnabled
+                            ? Icons.location_off
+                            : Icons.gamepad,
                         color: Colors.white,
                         size: 14,
                       ),
@@ -1236,7 +1335,10 @@ class _MapScreenState extends State<MapScreen> {
                           },
                           borderRadius: BorderRadius.circular(8),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? Colors.green.shade600
@@ -1249,7 +1351,9 @@ class _MapScreenState extends State<MapScreen> {
                                 Icon(
                                   speed.icon,
                                   size: 14,
-                                  color: isSelected ? Colors.white : Colors.grey.shade700,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.grey.shade700,
                                 ),
                                 const SizedBox(width: 3),
                                 Text(
@@ -1257,7 +1361,9 @@ class _MapScreenState extends State<MapScreen> {
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w600,
-                                    color: isSelected ? Colors.white : Colors.grey.shade700,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.grey.shade700,
                                   ),
                                 ),
                               ],
@@ -1328,31 +1434,30 @@ class _MapScreenState extends State<MapScreen> {
           onPanStart: (_) {
             // Start a timer that continuously updates heading based on joystick position
             _joystickTimer?.cancel();
-            _joystickTimer = Timer.periodic(
-              const Duration(milliseconds: 50),
-              (_) {
-                if (_joystickDelta == Offset.zero) return;
-                // Compute heading from joystick direction
-                // dx = east/west, dy = north/south (inverted screen Y)
-                final headingRad = math.atan2(
-                  _joystickDelta.dx,
-                  -_joystickDelta.dy, // screen up = north
-                );
-                final headingDeg = (headingRad * 180 / math.pi) % 360;
-                _mockService.setHeading(headingDeg);
+            _joystickTimer = Timer.periodic(const Duration(milliseconds: 50), (
+              _,
+            ) {
+              if (_joystickDelta == Offset.zero) return;
+              // Compute heading from joystick direction
+              // dx = east/west, dy = north/south (inverted screen Y)
+              final headingRad = math.atan2(
+                _joystickDelta.dx,
+                -_joystickDelta.dy, // screen up = north
+              );
+              final headingDeg = (headingRad * 180 / math.pi) % 360;
+              _mockService.setHeading(headingDeg);
 
-                // If accelerating or reversing, move in the heading direction
-                if (_isAccelerating || _isReversing) {
-                  final speed = _mockService.metersPerTick;
-                  final direction = _isReversing ? -1.0 : 1.0;
-                  final rad = headingDeg * math.pi / 180;
-                  _mockService.moveBy(
-                    math.sin(rad) * speed * direction,
-                    math.cos(rad) * speed * direction,
-                  );
-                }
-              },
-            );
+              // If accelerating or reversing, move in the heading direction
+              if (_isAccelerating || _isReversing) {
+                final speed = _mockService.metersPerTick;
+                final direction = _isReversing ? -1.0 : 1.0;
+                final rad = headingDeg * math.pi / 180;
+                _mockService.moveBy(
+                  math.sin(rad) * speed * direction,
+                  math.cos(rad) * speed * direction,
+                );
+              }
+            });
           },
           onPanUpdate: (details) {
             final center = const Offset(baseSize / 2, baseSize / 2);
@@ -1384,10 +1489,50 @@ class _MapScreenState extends State<MapScreen> {
             alignment: Alignment.center,
             children: [
               // N/S/E/W labels
-              const Positioned(top: 6, child: Text('N', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold))),
-              const Positioned(bottom: 6, child: Text('S', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold))),
-              const Positioned(left: 8, child: Text('W', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold))),
-              const Positioned(right: 8, child: Text('E', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold))),
+              const Positioned(
+                top: 6,
+                child: Text(
+                  'N',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Positioned(
+                bottom: 6,
+                child: Text(
+                  'S',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Positioned(
+                left: 8,
+                child: Text(
+                  'W',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Positioned(
+                right: 8,
+                child: Text(
+                  'E',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
               // Draggable knob
               Transform.translate(
                 offset: _joystickDelta,
@@ -1522,19 +1667,16 @@ class _MapScreenState extends State<MapScreen> {
   void _ensureMovementTimer() {
     if (_joystickTimer != null) return; // joystick already running
     _joystickTimer?.cancel();
-    _joystickTimer = Timer.periodic(
-      const Duration(milliseconds: 50),
-      (_) {
-        if (!_isAccelerating && !_isReversing) return;
-        final speed = _mockService.metersPerTick;
-        final direction = _isReversing ? -1.0 : 1.0;
-        final rad = _mockService.heading * math.pi / 180;
-        _mockService.moveBy(
-          math.sin(rad) * speed * direction,
-          math.cos(rad) * speed * direction,
-        );
-      },
-    );
+    _joystickTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
+      if (!_isAccelerating && !_isReversing) return;
+      final speed = _mockService.metersPerTick;
+      final direction = _isReversing ? -1.0 : 1.0;
+      final rad = _mockService.heading * math.pi / 180;
+      _mockService.moveBy(
+        math.sin(rad) * speed * direction,
+        math.cos(rad) * speed * direction,
+      );
+    });
   }
 
   /// Stop the movement timer if neither pedal is pressed and joystick is idle.
@@ -1556,9 +1698,7 @@ class _MapScreenState extends State<MapScreen> {
       child: Card(
         elevation: 4,
         shadowColor: Colors.red.withValues(alpha: 0.3),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         color: Colors.white.withValues(alpha: 0.95),
         child: Padding(
           padding: const EdgeInsets.all(16),
