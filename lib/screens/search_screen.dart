@@ -163,7 +163,7 @@ class _SearchScreenState extends State<SearchScreen> {
           builder: (context, controller) {
             return Container(
               decoration: const BoxDecoration(
-                color: Color(0xFFFDF6F0),
+                color: Color(0xFFFFFBF5),
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: BuildingDetailScreen(
@@ -193,8 +193,18 @@ class _SearchScreenState extends State<SearchScreen> {
       child: ChoiceChip(
         label: Text(type.displayName),
         selected: isSelected,
-        selectedColor: const Color(0xFFE60012),
-        labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black),
+        selectedColor: const Color(0xFFD32F2F),
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : const Color(0xFF5D4037),
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: isSelected ? const Color(0xFFD32F2F) : const Color(0xFFD7CCC8),
+          ),
+        ),
         onSelected: (_) => _filterByType(type),
       ),
     );
@@ -203,7 +213,9 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget _buildBuildingCard(Building building) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      elevation: 3,
+      elevation: 2,
+      shadowColor: const Color(0xFFD32F2F).withValues(alpha: 0.1),
+      color: Colors.white.withValues(alpha: 0.9),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         onTap: () => _openBuildingDetail(building),
@@ -232,10 +244,16 @@ class _SearchScreenState extends State<SearchScreen> {
 
         title: Text(
           building.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF3E2723),
+          ),
         ),
 
-        subtitle: Text(building.type.displayName),
+        subtitle: Text(
+          building.type.displayName,
+          style: const TextStyle(color: Color(0xFF5D4037)),
+        ),
 
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -243,7 +261,7 @@ class _SearchScreenState extends State<SearchScreen> {
             IconButton(
               icon: Icon(
                 building.isFavorite ? Icons.favorite : Icons.favorite_border,
-                color: Colors.red,
+                color: const Color(0xFFD32F2F),
               ),
               onPressed: () {
                 setState(() {
@@ -252,7 +270,7 @@ class _SearchScreenState extends State<SearchScreen> {
               },
             ),
             IconButton(
-              icon: const Icon(Icons.location_on),
+              icon: const Icon(Icons.location_on, color: Color(0xFFD32F2F)),
               onPressed: () {
                 recentService.add(building);
                 MapSelectionService().select(building);
@@ -274,10 +292,17 @@ class _SearchScreenState extends State<SearchScreen> {
           SizedBox(height: 16),
           Text(
             "No buildings found",
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF6D4C41),
+            ),
           ),
           SizedBox(height: 8),
-          Text("Try adjusting your search or filters"),
+          Text(
+            "Try adjusting your search or filters",
+            style: TextStyle(color: Color(0xFF8D6E63)),
+          ),
         ],
       ),
     );
@@ -288,11 +313,18 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFDF6F0),
+      backgroundColor: const Color(0xFFFFFBF5),
       appBar: AppBar(
-        title: const Text("Search"),
-        backgroundColor: const Color(0xFFFDF6F0),
+        title: const Text(
+          "Search",
+          style: TextStyle(
+            color: Color(0xFF6D4C41),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: const Color(0xFFFFFBF5),
         elevation: 0,
+        iconTheme: const IconThemeData(color: Color(0xFF6D4C41)),
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -306,11 +338,22 @@ class _SearchScreenState extends State<SearchScreen> {
                     onSubmitted: (value) => historyService.add(value),
                     decoration: InputDecoration(
                       hintText: "Search building...",
-                      prefixIcon: const Icon(Icons.search),
+                      hintStyle: const TextStyle(color: Color(0xFF8D6E63)),
+                      prefixIcon: const Icon(Icons.search, color: Color(0xFFD32F2F)),
                       filled: true,
                       fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide(color: Colors.brown.withValues(alpha: 0.1)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: const BorderSide(color: Color(0xFFD32F2F), width: 1.5),
                       ),
                     ),
                   ),
@@ -339,6 +382,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
+                        color: Color(0xFF8D6E63),
                       ),
                     ),
                   ),

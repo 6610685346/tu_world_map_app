@@ -85,6 +85,7 @@ class _MapScreenState extends State<MapScreen> {
   LatLng? _prevLocation; // for heading estimation from movement
 
   // Current camera zoom (updated on every camera-idle event)
+  // ignore: unused_field
   double _currentZoom = 14.0;
 
   // Joystick state (racing-game style)

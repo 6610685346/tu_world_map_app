@@ -51,7 +51,7 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
                             !widget.building.imageUrl.endsWith('.jpeg'));
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFDF6F0),
+      backgroundColor: const Color(0xFFFFFBF5),
       body: SafeArea(
         child: FutureBuilder<BuildingDetail>(
           future: detailFuture,
@@ -82,29 +82,28 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
                         IconButton(
                           icon: const Icon(
                             Icons.location_on,
-                            color: Colors.red,
+                            color: const Color(0xFFD32F2F),
                           ),
                           onPressed: widget.onViewOnMap,
                         ),
 
                         Expanded(
-                          child: Center(
                             child: Text(
                               widget.building.name,
                               style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
+                                color: Color(0xFF3E2723),
                               ),
                               textAlign: TextAlign.center,
                             ),
-                          ),
                         ),
 
                         // Favorite button
                         IconButton(
                           icon: Icon(
                             isFavorite ? Icons.favorite : Icons.favorite_border,
-                            color: Colors.red,
+                            color: const Color(0xFFD32F2F),
                           ),
                           onPressed: () {
                             setState(() {
@@ -139,7 +138,7 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
                                       icon: const Icon(Icons.open_in_browser),
                                       label: const Text('View Full Image on Web'),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.red,
+                                        backgroundColor: const Color(0xFFD32F2F),
                                         foregroundColor: Colors.white,
                                       ),
                                     )
@@ -166,7 +165,7 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
                                             icon: const Icon(Icons.open_in_browser),
                                             label: const Text('Open in Browser'),
                                             style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.red,
+                                              backgroundColor: const Color(0xFFD32F2F),
                                               foregroundColor: Colors.white,
                                             ),
                                           )
@@ -206,12 +205,16 @@ class _BuildingDetailScreenState extends State<BuildingDetailScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Colors.red),
+          Icon(icon, color: const Color(0xFFD32F2F)),
           const SizedBox(width: 14),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF5D4037),
+              ),
             ),
           ),
         ],
