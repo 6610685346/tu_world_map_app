@@ -14,6 +14,9 @@ import 'package:tu_world_map_app/services/building_service.dart';
 import 'package:tu_world_map_app/services/map_selection_service.dart';
 import 'package:tu_world_map_app/services/navigation_service.dart';
 import 'package:tu_world_map_app/services/favorite_service.dart';
+import 'package:tu_world_map_app/services/mock_location_service.dart';
+import 'package:tu_world_map_app/services/snap_to_path_service.dart';
+import 'package:tu_world_map_app/screens/route_picker_sheet.dart';
 
 /// =====================
 /// App Colors
@@ -62,13 +65,20 @@ class _MapScreenState extends State<MapScreen> {
   LatLng? currentLocation;
   LatLng? _lastRouteStart;
   LatLng? routingDestination;
+  Building? _routeOriginBuilding; // non-null = custom A→B route
 
   bool isLoading = true;
   bool _isRouting = false;
   bool _mapReady = false;
+  bool _isCustomRoute = false; // true when using building-to-building route
   String? _styleJson;
 
   StreamSubscription<Position>? _positionStream;
+  final MockLocationService _mockService = MockLocationService();
+
+  // Joystick state
+  Offset _joystickDelta = Offset.zero;
+  Timer? _joystickTimer;
 
   /// =====================
   /// Lifecycle
@@ -82,6 +92,7 @@ class _MapScreenState extends State<MapScreen> {
     _getCurrentLocation();
 
     _selectionService.addListener(_onBuildingSelected);
+    _mockService.addListener(_onMockLocationChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _onBuildingSelected();
@@ -91,8 +102,16 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void dispose() {
     _selectionService.removeListener(_onBuildingSelected);
+    _mockService.removeListener(_onMockLocationChanged);
     _positionStream?.cancel();
+    _joystickTimer?.cancel();
     super.dispose();
+  }
+
+  /// Called whenever the mock location service updates.
+  void _onMockLocationChanged() {
+    if (!_mockService.enabled) return;
+    _handleLocationUpdate(_mockService.mockPosition);
   }
 
   /// =====================
@@ -447,32 +466,90 @@ class _MapScreenState extends State<MapScreen> {
     _positionStream =
         Geolocator.getPositionStream(locationSettings: locationSettings).listen(
           (Position position) async {
+            // Skip real GPS updates when mock mode is active
+            if (_mockService.enabled) return;
+
             final newLocation = LatLng(position.latitude, position.longitude);
-
-            setState(() {
-              currentLocation = newLocation;
-            });
-
-            // Update route in real-time if navigating
-            if (routingDestination != null) {
-              await updateRouteWhileWalking();
-            }
+            _handleLocationUpdate(newLocation);
           },
         );
+  }
+
+  /// Unified location update handler for both real GPS and mock GPS.
+  /// Applies snap-to-path when a route is active.
+  void _handleLocationUpdate(LatLng rawLocation) {
+    LatLng displayLocation = rawLocation;
+
+    // Apply snap-to-path if we have an active route
+    if (currentRoute.isNotEmpty && !_isCustomRoute) {
+      displayLocation = SnapToPathService.snap(rawLocation, currentRoute);
+    }
+
+    setState(() {
+      currentLocation = displayLocation;
+    });
+
+    // Update route in real-time if navigating (not custom A→B)
+    if (routingDestination != null && !_isCustomRoute) {
+      // Use raw location for reroute distance check
+      _checkAndReroute(rawLocation);
+    }
+  }
+
+  /// Check if the user has moved enough to warrant a reroute.
+  Future<void> _checkAndReroute(LatLng rawLocation) async {
+    if (_isRouting) return;
+    if (routingDestination == null) return;
+
+    if (_lastRouteStart != null) {
+      final moved = const Distance().as(
+        LengthUnit.Meter,
+        _lastRouteStart!,
+        rawLocation,
+      );
+      if (moved < 10) return;
+    }
+
+    _isRouting = true;
+
+    try {
+      final newRoute = await _navigationService.buildRoute(
+        start: rawLocation,
+        destination: routingDestination!,
+      );
+
+      if (newRoute.isEmpty) {
+        debugPrint("Realtime route failed — keeping old route");
+        return;
+      }
+
+      setState(() {
+        currentRoute = newRoute;
+        _lastRouteStart = rawLocation;
+      });
+
+      await _updateRouteLayer();
+    } finally {
+      _isRouting = false;
+    }
   }
 
   /// =====================
   /// Navigation
   /// =====================
 
-  Future<void> startNavigation(Building building) async {
-    if (currentLocation == null) return;
+  Future<void> startNavigation(Building building, {LatLng? customStart}) async {
+    final startPoint = customStart ?? currentLocation;
+    if (startPoint == null) return;
+
+    final isCustom = customStart != null;
 
     setState(() {
       _isRouting = false;
       currentRoute.clear();
       _lastRouteStart = null;
       routingDestination = null;
+      _isCustomRoute = isCustom;
     });
 
     final destinationNode = _navigationService.findNearestNodeToPolygon(
@@ -484,7 +561,7 @@ class _MapScreenState extends State<MapScreen> {
     routingDestination = destination;
 
     final route = await _navigationService.buildRoute(
-      start: currentLocation!,
+      start: startPoint,
       destination: destination,
     );
 
@@ -495,7 +572,7 @@ class _MapScreenState extends State<MapScreen> {
 
     setState(() {
       currentRoute = route;
-      _lastRouteStart = currentLocation;
+      _lastRouteStart = startPoint;
     });
 
     // Update the route layer on the map
@@ -527,46 +604,41 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  /// =====================
-  /// Realtime navigation update (while walking)
-  /// =====================
+  /// Open the route picker sheet for custom A→B navigation.
+  void _openRoutePicker() async {
+    final result = await showModalBottomSheet<RouteRequest>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => RoutePickerSheet(
+        initialDestination: selectedBuilding,
+        buildings: buildings,
+      ),
+    );
 
-  Future<void> updateRouteWhileWalking() async {
-    if (currentLocation == null) return;
-    if (routingDestination == null) return;
-    if (_isRouting) return;
+    if (result == null || !mounted) return;
 
-    if (_lastRouteStart != null) {
-      final moved = const Distance().as(
-        LengthUnit.Meter,
-        _lastRouteStart!,
-        currentLocation!,
-      );
-
-      if (moved < 10) return; // avoid constant rerouting
-    }
-
-    _isRouting = true;
-
-    try {
-      final newRoute = await _navigationService.buildRoute(
-        start: currentLocation!,
-        destination: routingDestination!,
-      );
-
-      if (newRoute.isEmpty) {
-        debugPrint("Realtime route failed — keeping old route");
-        return;
-      }
-
+    if (result.origin != null) {
+      // Custom A→B: origin is a building
+      final originCenter = polygonCentroid(result.origin!.polygons.first);
       setState(() {
-        currentRoute = newRoute;
-        _lastRouteStart = currentLocation;
+        _routeOriginBuilding = result.origin;
+        selectedBuilding = result.destination;
+        selectedBuildingId = result.destination.id;
+        selectedBuildingCenter = polygonCentroid(result.destination.polygons.first);
       });
-
-      await _updateRouteLayer();
-    } finally {
-      _isRouting = false;
+      _updateSelectedBuilding();
+      await startNavigation(result.destination, customStart: originCenter);
+    } else {
+      // From current location
+      setState(() {
+        _routeOriginBuilding = null;
+        selectedBuilding = result.destination;
+        selectedBuildingId = result.destination.id;
+        selectedBuildingCenter = polygonCentroid(result.destination.polygons.first);
+      });
+      _updateSelectedBuilding();
+      await startNavigation(result.destination);
     }
   }
 
@@ -624,8 +696,16 @@ class _MapScreenState extends State<MapScreen> {
               setState(() {});
             },
           ),
+        // Route picker (custom A→B)
+        IconButton(
+          icon: const Icon(Icons.alt_route, color: AppColors.primaryRed),
+          tooltip: 'Plan Route',
+          onPressed: _openRoutePicker,
+        ),
+        // Quick navigate from current location
         IconButton(
           icon: const Icon(Icons.directions, color: AppColors.primaryRed),
+          tooltip: 'Navigate from here',
           onPressed: () {
             if (selectedBuilding != null) {
               startNavigation(selectedBuilding!);
@@ -648,6 +728,20 @@ class _MapScreenState extends State<MapScreen> {
                 ),
               );
             }
+          },
+        ),
+        // Mock GPS toggle
+        IconButton(
+          icon: Icon(
+            Icons.gamepad,
+            color: _mockService.enabled
+                ? Colors.green
+                : AppColors.brown.withValues(alpha: 0.5),
+          ),
+          tooltip: _mockService.enabled ? 'Disable Mock GPS' : 'Enable Mock GPS',
+          onPressed: () {
+            _mockService.toggle(initialPosition: currentLocation);
+            setState(() {});
           },
         ),
       ],
@@ -707,7 +801,7 @@ class _MapScreenState extends State<MapScreen> {
           zoomGesturesEnabled: true,
           tiltGesturesEnabled: true,
           rotateGesturesEnabled: true,
-          myLocationEnabled: !kIsWeb,
+          myLocationEnabled: !kIsWeb && !_mockService.enabled,
         ),
         // Attribution
         Positioned(
@@ -725,9 +819,149 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
         ),
+        // Mock GPS indicator badge
+        if (_mockService.enabled)
+          Positioned(
+            top: 8,
+            left: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.green.shade700,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 4,
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.gamepad, color: Colors.white, size: 14),
+                  SizedBox(width: 4),
+                  Text(
+                    'Mock GPS',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        // Joystick overlay (only when mock mode is active)
+        if (_mockService.enabled) _buildJoystick(),
         // Selected building info card
         if (selectedBuilding != null) _buildSelectedCard(),
       ],
+    );
+  }
+
+  /// ---------------------
+  /// Joystick Widget
+  /// ---------------------
+  Widget _buildJoystick() {
+    const double baseSize = 120;
+    const double knobSize = 44;
+    const double maxDisplacement = (baseSize - knobSize) / 2;
+
+    return Positioned(
+      bottom: selectedBuilding != null ? 110 : 24,
+      left: 16,
+      child: Container(
+        width: baseSize,
+        height: baseSize,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.black.withValues(alpha: 0.15),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.4),
+            width: 2,
+          ),
+        ),
+        child: GestureDetector(
+          onPanStart: (_) {
+            _joystickTimer?.cancel();
+            _joystickTimer = Timer.periodic(
+              const Duration(milliseconds: 50),
+              (_) {
+                if (_joystickDelta == Offset.zero) return;
+                // Scale: max displacement = ~3 meters/tick
+                final scale = 3.0 / maxDisplacement;
+                _mockService.moveBy(
+                  _joystickDelta.dx * scale,
+                  -_joystickDelta.dy * scale, // invert Y (screen down = south)
+                );
+              },
+            );
+          },
+          onPanUpdate: (details) {
+            final center = const Offset(baseSize / 2, baseSize / 2);
+            final localPos = details.localPosition;
+            var delta = localPos - center;
+
+            // Clamp to circle
+            if (delta.distance > maxDisplacement) {
+              delta = delta / delta.distance * maxDisplacement;
+            }
+
+            setState(() {
+              _joystickDelta = delta;
+            });
+          },
+          onPanEnd: (_) {
+            _joystickTimer?.cancel();
+            setState(() {
+              _joystickDelta = Offset.zero;
+            });
+          },
+          onPanCancel: () {
+            _joystickTimer?.cancel();
+            setState(() {
+              _joystickDelta = Offset.zero;
+            });
+          },
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Directional arrows
+              ...[
+                const Positioned(top: 8, child: Icon(Icons.arrow_drop_up, color: Colors.white54, size: 20)),
+                const Positioned(bottom: 8, child: Icon(Icons.arrow_drop_down, color: Colors.white54, size: 20)),
+                const Positioned(left: 8, child: Icon(Icons.arrow_left, color: Colors.white54, size: 20)),
+                const Positioned(right: 8, child: Icon(Icons.arrow_right, color: Colors.white54, size: 20)),
+              ],
+              // Draggable knob
+              Transform.translate(
+                offset: _joystickDelta,
+                child: Container(
+                  width: knobSize,
+                  height: knobSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.9),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.navigation,
+                    color: Colors.green.shade700,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -784,6 +1018,17 @@ class _MapScreenState extends State<MapScreen> {
                         color: const Color(0xFF5D4037).withValues(alpha: 0.8),
                       ),
                     ),
+                    if (_routeOriginBuilding != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'From: ${_routeOriginBuilding!.name}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: const Color(0xFF4CAF50).withValues(alpha: 0.9),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -797,6 +1042,8 @@ class _MapScreenState extends State<MapScreen> {
                     currentRoute.clear();
                     _lastRouteStart = null;
                     routingDestination = null;
+                    _routeOriginBuilding = null;
+                    _isCustomRoute = false;
                   });
                   _updateSelectedBuilding();
                   _updateRouteLayer();
