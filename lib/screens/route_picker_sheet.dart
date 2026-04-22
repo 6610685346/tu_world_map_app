@@ -78,12 +78,14 @@ class _RoutePickerSheetState extends State<RoutePickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFFFFFBF5),
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + bottomPadding),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -93,7 +95,7 @@ class _RoutePickerSheetState extends State<RoutePickerSheet> {
             height: 4,
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-              color: Colors.grey.shade300,
+              color: const Color(0xFFD7CCC8),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -133,7 +135,7 @@ class _RoutePickerSheetState extends State<RoutePickerSheet> {
                   Container(
                     width: 2,
                     height: 40,
-                    color: Colors.grey.shade300,
+                    color: const Color(0xFFD7CCC8),
                   ),
                 ],
               ),
@@ -161,7 +163,7 @@ class _RoutePickerSheetState extends State<RoutePickerSheet> {
                   icon: const Icon(Icons.swap_vert, color: Color(0xFF6D4C41)),
                   tooltip: 'Swap origin and destination',
                   style: IconButton.styleFrom(
-                    backgroundColor: Colors.grey.shade100,
+                    backgroundColor: const Color(0xFFD7CCC8).withValues(alpha: 0.3),
                   ),
                 ),
               ],
@@ -177,7 +179,7 @@ class _RoutePickerSheetState extends State<RoutePickerSheet> {
                   Container(
                     width: 2,
                     height: 8,
-                    color: Colors.grey.shade300,
+                    color: const Color(0xFFD7CCC8),
                   ),
                   Container(
                     width: 12,
@@ -260,9 +262,16 @@ class _RoutePickerSheetState extends State<RoutePickerSheet> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Colors.white.withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFD32F2F).withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(color: const Color(0xFFD7CCC8).withValues(alpha: 0.2)),
         ),
         child: Row(
           children: [
@@ -274,10 +283,10 @@ class _RoutePickerSheetState extends State<RoutePickerSheet> {
                 children: [
                   Text(
                     label,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 11,
-                      color: Colors.grey.shade500,
-                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF8D6E63),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -293,7 +302,7 @@ class _RoutePickerSheetState extends State<RoutePickerSheet> {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 20),
+            Icon(Icons.chevron_right, color: const Color(0xFF8D6E63).withValues(alpha: 0.5), size: 20),
           ],
         ),
       ),
@@ -350,7 +359,7 @@ class _BuildingSearchPickerState extends State<_BuildingSearchPicker> {
                 height: 4,
                 margin: const EdgeInsets.only(top: 12, bottom: 8),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: const Color(0xFFD7CCC8),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -376,26 +385,33 @@ class _BuildingSearchPickerState extends State<_BuildingSearchPicker> {
                   autofocus: true,
                   decoration: InputDecoration(
                     hintText: 'Search building...',
-                    prefixIcon: const Icon(Icons.search),
+                    hintStyle: const TextStyle(color: Color(0xFF8D6E63)),
+                    prefixIcon: const Icon(Icons.search, color: Color(0xFFD32F2F)),
                     filled: true,
                     fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
+                      borderRadius: BorderRadius.circular(15),
+                      borderSide: BorderSide.none,
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
+                      borderRadius: BorderRadius.circular(15),
+                      borderSide: BorderSide(color: Colors.brown.withValues(alpha: 0.1)),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(15),
+                      borderSide: const BorderSide(color: Color(0xFFD32F2F), width: 1.5),
+                    ),
                   ),
                 ),
               ),
 
-              // Results
               Expanded(
                 child: ListView.builder(
                   controller: scrollController,
+                  padding: EdgeInsets.only(
+                    bottom: MediaQuery.of(context).padding.bottom + 20,
+                  ),
                   itemCount: _filtered.length + (widget.showMyLocation ? 1 : 0),
                   itemBuilder: (context, index) {
                     // "My Location" option at the top for origin picker
@@ -407,9 +423,15 @@ class _BuildingSearchPickerState extends State<_BuildingSearchPicker> {
                         ),
                         title: const Text(
                           'My Location',
-                          style: TextStyle(fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF3E2723),
+                          ),
                         ),
-                        subtitle: const Text('Use current GPS position'),
+                        subtitle: const Text(
+                          'Use current GPS position',
+                          style: TextStyle(color: Color(0xFF5D4037)),
+                        ),
                         onTap: () => Navigator.of(context).pop(null),
                       );
                     }
@@ -424,9 +446,15 @@ class _BuildingSearchPickerState extends State<_BuildingSearchPicker> {
                       ),
                       title: Text(
                         building.name,
-                        style: const TextStyle(fontWeight: FontWeight.w500),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF3E2723),
+                        ),
                       ),
-                      subtitle: Text(building.type.displayName),
+                      subtitle: Text(
+                        building.type.displayName,
+                        style: const TextStyle(color: Color(0xFF5D4037)),
+                      ),
                       onTap: () => Navigator.of(context).pop(building),
                     );
                   },

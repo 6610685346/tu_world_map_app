@@ -194,6 +194,8 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
   Widget _buildFavoriteCard(Building building) {
     return Card(
       elevation: 2,
+      shadowColor: _primaryRed.withValues(alpha: 0.1),
+      color: Colors.white.withValues(alpha: 0.9),
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
@@ -224,9 +226,9 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
           children: [
             IconButton(
               icon: const Icon(
-                Icons.location_on_outlined,
+                Icons.location_on,
                 size: 22,
-                color: _lightBrown,
+                color: _primaryRed,
               ),
               tooltip: "View on map",
               onPressed: () {
@@ -238,7 +240,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
               icon: const Icon(
                 Icons.edit_outlined,
                 size: 20,
-                color: _lightBrown,
+                color: _brown,
               ),
               tooltip: "Rename",
               onPressed: () {
@@ -267,15 +269,30 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text("Rename Favorite"),
+          backgroundColor: _cream,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            "Rename Favorite",
+            style: TextStyle(
+              color: _darkBrown,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           content: TextField(
             controller: controller,
-            decoration: const InputDecoration(hintText: "Enter custom name"),
+            decoration: InputDecoration(
+              hintText: "Enter custom name",
+              hintStyle: TextStyle(color: _lightBrown.withValues(alpha: 0.6)),
+              focusedBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: _primaryRed),
+              ),
+            ),
+            style: const TextStyle(color: _brown),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel"),
+              child: const Text("Cancel", style: TextStyle(color: _lightBrown)),
             ),
             ElevatedButton(
               onPressed: () {
@@ -285,6 +302,13 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                 );
                 Navigator.pop(context);
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _primaryRed,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
               child: const Text("Save"),
             ),
           ],
