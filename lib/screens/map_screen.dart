@@ -1,10 +1,10 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as maplibre;
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:logging/logging.dart';
 
@@ -71,10 +71,15 @@ class _MapScreenState extends State<MapScreen> {
   bool _isRouting = false;
   bool _mapReady = false;
   bool _isCustomRoute = false; // true when using building-to-building route
+  bool _userInsideCampus = false; // whether real GPS is inside university bounds
   String? _styleJson;
 
   StreamSubscription<Position>? _positionStream;
   final MockLocationService _mockService = MockLocationService();
+
+  // Heading (degrees, 0=north, clockwise)
+  double _heading = 0;
+  LatLng? _prevLocation; // for heading estimation from movement
 
   // Joystick state
   Offset _joystickDelta = Offset.zero;
@@ -225,9 +230,17 @@ class _MapScreenState extends State<MapScreen> {
       // Add route source (initially empty)
       await _addRouteSource();
 
+      // Add user location blue dot source
+      await _addUserLocationSource();
+
       // If a building was already selected before the map loaded, highlight it
       if (selectedBuildingId != null) {
         await _updateSelectedBuilding();
+      }
+
+      // If we already have a location, show it immediately
+      if (currentLocation != null) {
+        await _updateUserLocationDot();
       }
     } catch (e, stackTrace) {
       _log.severe('Error in _onStyleLoaded', e, stackTrace);
@@ -444,6 +457,91 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   /// =====================
+  /// User Location Blue Dot (GeoJSON)
+  /// =====================
+  Future<void> _addUserLocationSource() async {
+    try {
+      // Source for user location dot
+      await _mapController.addSource(
+        'app-user-location',
+        maplibre.GeojsonSourceProperties(
+          data: {'type': 'FeatureCollection', 'features': []},
+        ),
+      );
+
+      // Outer glow / accuracy ring
+      await _mapController.addLayer(
+        'app-user-location',
+        'app-user-location-glow',
+        const maplibre.CircleLayerProperties(
+          circleRadius: 18,
+          circleColor: '#4285F4',
+          circleOpacity: 0.15,
+        ),
+      );
+
+      // White border
+      await _mapController.addLayer(
+        'app-user-location',
+        'app-user-location-border',
+        const maplibre.CircleLayerProperties(
+          circleRadius: 9,
+          circleColor: '#FFFFFF',
+          circleOpacity: 1,
+        ),
+      );
+
+      // Blue dot
+      await _mapController.addLayer(
+        'app-user-location',
+        'app-user-location-dot',
+        const maplibre.CircleLayerProperties(
+          circleRadius: 6,
+          circleColor: '#4285F4',
+          circleOpacity: 1,
+        ),
+      );
+    } catch (e, stackTrace) {
+      _log.severe('Error adding user location source', e, stackTrace);
+    }
+  }
+
+  Future<void> _updateUserLocationDot() async {
+    if (!_mapReady || currentLocation == null) return;
+
+    try {
+      final geoJson = {
+        'type': 'FeatureCollection',
+        'features': [
+          {
+            'type': 'Feature',
+            'properties': {},
+            'geometry': {
+              'type': 'Point',
+              'coordinates': [
+                currentLocation!.longitude,
+                currentLocation!.latitude,
+              ],
+            },
+          },
+        ],
+      };
+
+      await _mapController.setGeoJsonSource('app-user-location', geoJson);
+    } catch (e) {
+      _log.warning('Error updating user location dot: $e');
+    }
+  }
+
+  /// Check if a position is within campus bounds.
+  bool _isInsideCampus(LatLng pos) {
+    return pos.latitude >= _boundsSwLat &&
+        pos.latitude <= _boundsNeLat &&
+        pos.longitude >= _boundsSwLng &&
+        pos.longitude <= _boundsNeLng;
+  }
+
+  /// =====================
   /// Location (Real-Time)
   /// =====================
   Future<void> _getCurrentLocation() async {
@@ -460,7 +558,7 @@ class _MapScreenState extends State<MapScreen> {
 
     const locationSettings = LocationSettings(
       accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 10,
+      distanceFilter: 5,
     );
 
     _positionStream =
@@ -470,14 +568,40 @@ class _MapScreenState extends State<MapScreen> {
             if (_mockService.enabled) return;
 
             final newLocation = LatLng(position.latitude, position.longitude);
-            _handleLocationUpdate(newLocation);
+            final inside = _isInsideCampus(newLocation);
+
+            // Auto-enable mock GPS if user is outside campus
+            if (!inside && !_userInsideCampus && !_mockService.enabled) {
+              _mockService.enable(
+                initialPosition: const LatLng(14.0723, 100.6034), // campus center
+                auto: true,
+              );
+              setState(() {
+                _userInsideCampus = false;
+              });
+              return;
+            }
+
+            // If user comes back inside campus, disable auto-mock
+            if (inside && _mockService.autoEnabled) {
+              _mockService.disable();
+            }
+
+            setState(() {
+              _userInsideCampus = inside;
+            });
+
+            _handleLocationUpdate(
+              newLocation,
+              gpsHeading: position.heading,
+            );
           },
         );
   }
 
   /// Unified location update handler for both real GPS and mock GPS.
   /// Applies snap-to-path when a route is active.
-  void _handleLocationUpdate(LatLng rawLocation) {
+  void _handleLocationUpdate(LatLng rawLocation, {double? gpsHeading}) {
     LatLng displayLocation = rawLocation;
 
     // Apply snap-to-path if we have an active route
@@ -485,9 +609,50 @@ class _MapScreenState extends State<MapScreen> {
       displayLocation = SnapToPathService.snap(rawLocation, currentRoute);
     }
 
+    // Estimate heading from movement if no sensor heading provided
+    if (gpsHeading != null && gpsHeading >= 0) {
+      _heading = gpsHeading;
+    } else if (_prevLocation != null) {
+      final dLat = rawLocation.latitude - _prevLocation!.latitude;
+      final dLng = rawLocation.longitude - _prevLocation!.longitude;
+      if (dLat.abs() > 1e-7 || dLng.abs() > 1e-7) {
+        _heading = (math.atan2(dLng, dLat) * 180 / math.pi) % 360;
+      }
+    }
+    _prevLocation = rawLocation;
+
+    // If mock service is providing heading, use it
+    if (_mockService.enabled) {
+      _heading = _mockService.heading;
+    }
+
     setState(() {
       currentLocation = displayLocation;
     });
+
+    // Update the blue dot on the map
+    _updateUserLocationDot();
+
+    // Rotate map to match heading when navigating
+    if (_mapReady && routingDestination != null && !_isCustomRoute) {
+      try {
+        _mapController.animateCamera(
+          maplibre.CameraUpdate.newCameraPosition(
+            maplibre.CameraPosition(
+              target: maplibre.LatLng(
+                displayLocation.latitude,
+                displayLocation.longitude,
+              ),
+              bearing: _heading,
+              zoom: 18,
+              tilt: 45,
+            ),
+          ),
+        );
+      } catch (e) {
+        _log.warning('Camera rotation failed: $e');
+      }
+    }
 
     // Update route in real-time if navigating (not custom A→B)
     if (routingDestination != null && !_isCustomRoute) {
@@ -730,20 +895,21 @@ class _MapScreenState extends State<MapScreen> {
             }
           },
         ),
-        // Mock GPS toggle
-        IconButton(
-          icon: Icon(
-            Icons.gamepad,
-            color: _mockService.enabled
-                ? Colors.green
-                : AppColors.brown.withValues(alpha: 0.5),
+        // Mock GPS toggle — only allow manual toggle if inside campus or already enabled
+        if (!_mockService.autoEnabled)
+          IconButton(
+            icon: Icon(
+              Icons.gamepad,
+              color: _mockService.enabled
+                  ? Colors.green
+                  : AppColors.brown.withValues(alpha: 0.5),
+            ),
+            tooltip: _mockService.enabled ? 'Disable Mock GPS' : 'Enable Mock GPS',
+            onPressed: () {
+              _mockService.toggle(initialPosition: currentLocation);
+              setState(() {});
+            },
           ),
-          tooltip: _mockService.enabled ? 'Disable Mock GPS' : 'Enable Mock GPS',
-          onPressed: () {
-            _mockService.toggle(initialPosition: currentLocation);
-            setState(() {});
-          },
-        ),
       ],
     );
   }
@@ -801,7 +967,7 @@ class _MapScreenState extends State<MapScreen> {
           zoomGesturesEnabled: true,
           tiltGesturesEnabled: true,
           rotateGesturesEnabled: true,
-          myLocationEnabled: !kIsWeb && !_mockService.enabled,
+          myLocationEnabled: false, // We use our own blue dot
         ),
         // Attribution
         Positioned(
@@ -819,38 +985,111 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
         ),
-        // Mock GPS indicator badge
+        // Mock GPS indicator badge + speed selector
         if (_mockService.enabled)
           Positioned(
             top: 8,
             left: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.green.shade700,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 4,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: _mockService.autoEnabled
+                        ? Colors.orange.shade700
+                        : Colors.green.shade700,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 4,
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.gamepad, color: Colors.white, size: 14),
-                  SizedBox(width: 4),
-                  Text(
-                    'Mock GPS',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _mockService.autoEnabled ? Icons.location_off : Icons.gamepad,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _mockService.autoEnabled
+                            ? 'Outside Campus'
+                            : 'Mock GPS',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 6),
+                // Speed selector chips
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: MockSpeed.values.map((speed) {
+                      final isSelected = _mockService.speed == speed;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: InkWell(
+                          onTap: () {
+                            _mockService.setSpeed(speed);
+                            setState(() {});
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.green.shade600
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  speed.icon,
+                                  size: 14,
+                                  color: isSelected ? Colors.white : Colors.grey.shade700,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  speed.label,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: isSelected ? Colors.white : Colors.grey.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
             ),
           ),
         // Joystick overlay (only when mock mode is active)
@@ -890,8 +1129,8 @@ class _MapScreenState extends State<MapScreen> {
               const Duration(milliseconds: 50),
               (_) {
                 if (_joystickDelta == Offset.zero) return;
-                // Scale: max displacement = ~3 meters/tick
-                final scale = 3.0 / maxDisplacement;
+                // Scale: use mock service speed preset
+                final scale = _mockService.metersPerTick / maxDisplacement;
                 _mockService.moveBy(
                   _joystickDelta.dx * scale,
                   -_joystickDelta.dy * scale, // invert Y (screen down = south)
