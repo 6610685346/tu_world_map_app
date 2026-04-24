@@ -46,11 +46,13 @@ class _SearchScreenState extends State<SearchScreen> {
     super.initState();
     _loadBuildings();
     _scrollController.addListener(_onScroll);
+    FavoriteService().addListener(_syncFavorites);
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    FavoriteService().removeListener(_syncFavorites);
     super.dispose();
   }
 
@@ -83,6 +85,16 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
+  void _syncFavorites() {
+    if (mounted) {
+      setState(() {
+        for (var building in allBuildings) {
+          building.isFavorite = FavoriteService().isFavorite(building);
+        }
+      });
+    }
+  }
+
   void _resetPagination() {
     _currentPage = 0;
     final end = _buildingsPerPage.clamp(0, filteredBuildings.length);
@@ -90,7 +102,8 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _loadMoreBuildings() {
-    if (isLoadingMore || displayedBuildings.length >= filteredBuildings.length) {
+    if (isLoadingMore ||
+        displayedBuildings.length >= filteredBuildings.length) {
       return;
     }
 
@@ -207,7 +220,9 @@ class _SearchScreenState extends State<SearchScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: BorderSide(
-            color: isSelected ? const Color(0xFFD32F2F) : const Color(0xFFD7CCC8),
+            color: isSelected
+                ? const Color(0xFFD32F2F)
+                : const Color(0xFFD7CCC8),
           ),
         ),
         onSelected: (_) => _filterByType(type),
@@ -227,24 +242,28 @@ class _SearchScreenState extends State<SearchScreen> {
 
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: (building.imageUrl.contains('ibb.co') || (!building.imageUrl.endsWith('.png') && !building.imageUrl.endsWith('.jpg') && !building.imageUrl.endsWith('.jpeg'))) 
-            ? Container(
-                width: 50,
-                height: 50,
-                color: Colors.grey.withValues(alpha: 0.2),
-                child: const Icon(Icons.link, size: 30, color: Colors.grey),
-              )
-            : Image.network(
-                building.imageUrl,
-                width: 50,
-                height: 50,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => const Icon(
-                  Icons.image_not_supported,
-                  size: 40,
-                  color: Colors.grey,
+          child:
+              (building.imageUrl.contains('ibb.co') ||
+                  (!building.imageUrl.endsWith('.png') &&
+                      !building.imageUrl.endsWith('.jpg') &&
+                      !building.imageUrl.endsWith('.jpeg')))
+              ? Container(
+                  width: 50,
+                  height: 50,
+                  color: Colors.grey.withValues(alpha: 0.2),
+                  child: const Icon(Icons.link, size: 30, color: Colors.grey),
+                )
+              : Image.network(
+                  building.imageUrl,
+                  width: 50,
+                  height: 50,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.image_not_supported,
+                    size: 40,
+                    color: Colors.grey,
+                  ),
                 ),
-              ),
         ),
 
         title: Text(
@@ -354,21 +373,32 @@ class _SearchScreenState extends State<SearchScreen> {
                     decoration: InputDecoration(
                       hintText: "Search building...",
                       hintStyle: const TextStyle(color: Color(0xFF8D6E63)),
-                      prefixIcon: const Icon(Icons.search, color: Color(0xFFD32F2F)),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: Color(0xFFD32F2F),
+                      ),
                       filled: true,
                       fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 15,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(15),
                         borderSide: BorderSide.none,
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(15),
-                        borderSide: BorderSide(color: Colors.brown.withValues(alpha: 0.1)),
+                        borderSide: BorderSide(
+                          color: Colors.brown.withValues(alpha: 0.1),
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(15),
-                        borderSide: const BorderSide(color: Color(0xFFD32F2F), width: 1.5),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFD32F2F),
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),

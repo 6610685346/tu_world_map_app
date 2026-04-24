@@ -107,6 +107,7 @@ class _MapScreenState extends State<MapScreen> {
 
     _selectionService.addListener(_onBuildingSelected);
     _mockService.addListener(_onMockLocationChanged);
+    FavoriteService().addListener(_syncFavorites);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _onBuildingSelected();
@@ -117,9 +118,20 @@ class _MapScreenState extends State<MapScreen> {
   void dispose() {
     _selectionService.removeListener(_onBuildingSelected);
     _mockService.removeListener(_onMockLocationChanged);
+    FavoriteService().removeListener(_syncFavorites);
     _positionStream?.cancel();
     _joystickTimer?.cancel();
     super.dispose();
+  }
+
+  void _syncFavorites() {
+    if (mounted) {
+      setState(() {
+        for (var building in buildings) {
+          building.isFavorite = FavoriteService().isFavorite(building);
+        }
+      });
+    }
   }
 
   /// Called whenever the mock location service updates.
