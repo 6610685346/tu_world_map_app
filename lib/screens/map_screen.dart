@@ -12,6 +12,7 @@ import 'package:logging/logging.dart';
 
 import 'package:tu_world_map_app/models/building.dart';
 import 'package:tu_world_map_app/models/building_type.dart';
+import 'package:tu_world_map_app/models/path_node.dart' show TravelMode;
 import 'package:tu_world_map_app/services/building_service.dart';
 import 'package:tu_world_map_app/services/map_selection_service.dart';
 import 'package:tu_world_map_app/services/navigation_service.dart';
@@ -73,6 +74,7 @@ class _MapScreenState extends State<MapScreen> {
   bool _isRouting = false;
   bool _mapReady = false;
   bool _isCustomRoute = false; // true when using building-to-building route
+  TravelMode _travelMode = TravelMode.walk;
   bool _userInsideCampus =
       false; // whether real GPS is inside university bounds
   String? _styleJson;
@@ -975,6 +977,7 @@ class _MapScreenState extends State<MapScreen> {
       final newRoute = await _navigationService.buildRoute(
         start: rawLocation,
         destination: routingDestination!,
+        mode: _travelMode,
       );
 
       if (newRoute.isEmpty) {
@@ -1011,7 +1014,7 @@ class _MapScreenState extends State<MapScreen> {
       _isCustomRoute = isCustom;
     });
 
-    final destinationNode = _navigationService.findNearestNodeToPolygon(
+    final destinationNode = await _navigationService.findNearestNodeToPolygon(
       building.polygons.first,
     );
 
@@ -1022,6 +1025,7 @@ class _MapScreenState extends State<MapScreen> {
     final route = await _navigationService.buildRoute(
       start: startPoint,
       destination: destination,
+      mode: _travelMode,
     );
 
     if (route.isEmpty) {
@@ -1290,6 +1294,13 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
         ),
+        // Travel mode selector (only visible while actively routing)
+        if (routingDestination != null)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: _buildTravelModeSelector(),
+          ),
         // Mock GPS indicator badge + speed selector
         if (_mockService.enabled)
           Positioned(
@@ -1415,6 +1426,87 @@ class _MapScreenState extends State<MapScreen> {
         if (selectedBuilding != null) _buildSelectedCard(),
       ],
     );
+  }
+
+  /// ---------------------
+  /// Travel Mode Selector
+  /// ---------------------
+  Widget _buildTravelModeSelector() {
+    return Material(
+      elevation: 3,
+      borderRadius: BorderRadius.circular(24),
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _modeButton(TravelMode.walk, Icons.directions_walk),
+            _modeButton(TravelMode.bike, Icons.directions_bike),
+            _modeButton(TravelMode.car, Icons.directions_car),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _modeButton(TravelMode mode, IconData icon) {
+    final selected = _travelMode == mode;
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => _onTravelModeChanged(mode),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primaryRed : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Icon(
+          icon,
+          size: 22,
+          color: selected ? Colors.white : AppColors.darkBrown,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onTravelModeChanged(TravelMode mode) async {
+    if (mode == _travelMode) return;
+    setState(() {
+      _travelMode = mode;
+    });
+
+    final start = currentLocation;
+    final dest = routingDestination;
+    if (start == null || dest == null) return;
+
+    final route = await _navigationService.buildRoute(
+      start: start,
+      destination: dest,
+      mode: mode,
+    );
+
+    if (!mounted) return;
+    if (route.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            mode == TravelMode.car
+                ? 'No car route available — roads not yet tagged in this area.'
+                : 'No ${mode.name} route available.',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      currentRoute = route;
+      _lastRouteStart = start;
+    });
+    await _updateRouteLayer();
   }
 
   /// ---------------------

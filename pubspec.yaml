@@ -54,3 +54,4 @@ flutter:
   assets:
     - assets/styles/versatiles-colorful.json
     - assets/db/buildings_info.db
+    - assets/paths.geojson
