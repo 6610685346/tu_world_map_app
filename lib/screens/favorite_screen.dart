@@ -23,7 +23,6 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
   static const _primaryRed = Color(0xFFD32F2F);
   static const _darkBrown = Color(0xFF3E2723);
   static const _brown = Color(0xFF5D4037);
-  static const _lightBrown = Color(0xFF8D6E63);
 
   @override
   void initState() {
@@ -220,7 +219,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
           child: const Icon(Icons.favorite, color: _primaryRed, size: 24),
         ),
         title: Text(
-          _favoriteService.getDisplayName(building),
+          building.name,
           style: const TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 16,
@@ -231,99 +230,23 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
           building.type.displayName,
           style: const TextStyle(fontSize: 14, color: _brown),
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(
-                Icons.location_on,
-                size: 22,
-                color: _primaryRed,
-              ),
-              tooltip: "View on map",
-              onPressed: () {
-                MapSelectionService().select(building);
-                widget.onTabChange(1);
-              },
-            ),
-            IconButton(
-              icon: const Icon(
-                Icons.edit_outlined,
-                size: 20,
-                color: _brown,
-              ),
-              tooltip: "Rename",
-              onPressed: () {
-                _showRenameDialog(building);
-              },
-            ),
-          ],
+        trailing: IconButton(
+          icon: const Icon(
+            Icons.location_on,
+            size: 22,
+            color: _primaryRed,
+          ),
+          tooltip: "View on map",
+          onPressed: () {
+            MapSelectionService().select(building);
+            widget.onTabChange(1);
+          },
         ),
-
         onTap: () {
           MapSelectionService().select(building);
+          widget.onTabChange(1);
         },
       ),
-    );
-  }
-
-  /// =====================
-  /// Rename Dialog
-  /// =====================
-  void _showRenameDialog(Building building) {
-    final controller = TextEditingController(
-      text: _favoriteService.getDisplayName(building),
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: _cream,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text(
-            "Rename Favorite",
-            style: TextStyle(
-              color: _darkBrown,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: TextField(
-            controller: controller,
-            decoration: InputDecoration(
-              hintText: "Enter custom name",
-              hintStyle: TextStyle(color: _lightBrown.withValues(alpha: 0.6)),
-              focusedBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: _primaryRed),
-              ),
-            ),
-            style: const TextStyle(color: _brown),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel", style: TextStyle(color: _lightBrown)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                _favoriteService.setCustomName(
-                  building.id,
-                  controller.text.trim(),
-                );
-                Navigator.pop(context);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryRed,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: const Text("Save"),
-            ),
-          ],
-        );
-      },
     );
   }
 }

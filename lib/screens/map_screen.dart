@@ -1406,6 +1406,10 @@ class _MapScreenState extends State<MapScreen> {
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, color: AppColors.primaryRed),
           tooltip: 'More',
+          color: AppColors.cream,
+          surfaceTintColor: Colors.transparent,
+          elevation: 4,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           onSelected: (value) {
             switch (value) {
               case 'plan_route':
@@ -1418,30 +1422,45 @@ class _MapScreenState extends State<MapScreen> {
             }
           },
           itemBuilder: (context) => [
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'plan_route',
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.alt_route, color: AppColors.primaryRed),
-                title: Text('Plan custom route'),
+              child: Row(
+                children: [
+                  const Icon(Icons.alt_route, color: AppColors.primaryRed, size: 20),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Plan custom route',
+                    style: TextStyle(
+                      color: AppColors.darkBrown,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
               ),
             ),
             if (!_mockService.autoEnabled)
               PopupMenuItem(
                 value: 'mock_gps',
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    Icons.gamepad,
-                    color: _mockService.enabled
-                        ? Colors.green
-                        : AppColors.brown,
-                  ),
-                  title: Text(
-                    _mockService.enabled
-                        ? 'Disable Mock GPS'
-                        : 'Enable Mock GPS',
-                  ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.gamepad,
+                      color: _mockService.enabled ? Colors.green : AppColors.brown,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      _mockService.enabled
+                          ? 'Disable Mock GPS'
+                          : 'Enable Mock GPS',
+                      style: const TextStyle(
+                        color: AppColors.darkBrown,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
                 ),
               ),
           ],

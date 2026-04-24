@@ -11,10 +11,8 @@ class FavoriteService extends ChangeNotifier {
   FavoriteService._internal();
 
   static const String _favoritesKey = 'favorites';
-  static const String _customNamesKey = 'favorite_custom_names';
 
   final List<Building> _favorites = [];
-  final Map<String, String> _customNames = {};
 
   Future<void> loadFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
@@ -27,16 +25,6 @@ class FavoriteService extends ChangeNotifier {
       _favorites.addAll(jsonList.map((e) => Building.fromJson(e)).toList());
     }
 
-    // Load custom names
-    final namesJson = prefs.getString(_customNamesKey);
-    if (namesJson != null) {
-      final Map<String, dynamic> namesMap = json.decode(namesJson);
-      _customNames.clear();
-      namesMap.forEach((key, value) {
-        _customNames[key] = value as String;
-      });
-    }
-
     notifyListeners();
   }
 
@@ -44,15 +32,11 @@ class FavoriteService extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final favJson = json.encode(_favorites.map((b) => b.toJson()).toList());
     await prefs.setString(_favoritesKey, favJson);
-
-    final namesJson = json.encode(_customNames);
-    await prefs.setString(_customNamesKey, namesJson);
   }
 
   void toggle(Building building) {
     if (isFavorite(building)) {
       _favorites.removeWhere((b) => b.id == building.id);
-      _customNames.remove(building.id);
       building.isFavorite = false;
     } else {
       _favorites.add(building);
@@ -68,7 +52,6 @@ class FavoriteService extends ChangeNotifier {
 
   void remove(Building building) {
     _favorites.removeWhere((b) => b.id == building.id);
-    _customNames.remove(building.id);
     building.isFavorite = false;
     _saveToPrefs();
     notifyListeners();
@@ -78,25 +61,14 @@ class FavoriteService extends ChangeNotifier {
     return List.unmodifiable(_favorites);
   }
 
-  void setCustomName(String buildingId, String name) {
-    _customNames[buildingId] = name;
-    _saveToPrefs();
-    notifyListeners();
-  }
-
-  String getDisplayName(Building building) {
-    return _customNames[building.id] ?? building.name;
-  }
-
   Future<void> clearAll() async {
     for (final b in _favorites) {
       b.isFavorite = false;
     }
     _favorites.clear();
-    _customNames.clear();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_favoritesKey);
-    await prefs.remove(_customNamesKey);
+    await prefs.remove('favorite_custom_names');
     notifyListeners();
   }
 }
