@@ -60,6 +60,11 @@ class _SearchScreenState extends State<SearchScreen> {
     try {
       final data = await buildingService.getBuildings();
 
+      // Sync favorite status from FavoriteService
+      for (var building in data) {
+        building.isFavorite = FavoriteService().isFavorite(building);
+      }
+
       if (mounted) {
         setState(() {
           allBuildings = data;

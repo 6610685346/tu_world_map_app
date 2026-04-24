@@ -206,6 +206,12 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> _loadBuildings() async {
     try {
       final data = await _buildingService.getBuildings();
+
+      // Sync favorite status from FavoriteService
+      for (var building in data) {
+        building.isFavorite = FavoriteService().isFavorite(building);
+      }
+
       if (mounted) {
         setState(() {
           buildings = data;
