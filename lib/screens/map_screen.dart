@@ -19,7 +19,9 @@ import 'package:tu_world_map_app/services/navigation_service.dart';
 import 'package:tu_world_map_app/services/favorite_service.dart';
 import 'package:tu_world_map_app/services/mock_location_service.dart';
 import 'package:tu_world_map_app/services/snap_to_path_service.dart';
+import 'package:tu_world_map_app/services/fused_location_source.dart';
 import 'package:tu_world_map_app/screens/route_picker_sheet.dart';
+import 'package:tu_world_map_app/screens/route_preview_panel.dart';
 
 /// =====================
 /// App Colors
@@ -31,6 +33,19 @@ class AppColors {
   static const brown = Color(0xFF6D4C41);
   static const darkBrown = Color(0xFF3E2723);
 }
+
+/// =====================
+/// Navigation flow state
+/// =====================
+/// idle:       no building selected; just the map.
+/// selected:   a building is selected; map shows its highlight + a card
+///             with the primary "Directions" action.
+/// preview:    a route has been computed and drawn; the preview panel
+///             shows distance/ETA/mode chips and a Start button. Camera
+///             does not track the user yet.
+/// navigating: the user pressed Start. Camera tracks user, snap-to-path
+///             and reroute logic are active.
+enum _NavState { idle, selected, preview, navigating }
 
 /// =====================
 /// Map Screen
@@ -73,8 +88,11 @@ class _MapScreenState extends State<MapScreen> {
   bool isLoading = true;
   bool _isRouting = false;
   bool _mapReady = false;
-  bool _isCustomRoute = false; // true when using building-to-building route
+  _NavState _navState = _NavState.idle;
   TravelMode _travelMode = TravelMode.walk;
+  // Cached route metrics for the preview panel.
+  double _previewDistanceMeters = 0;
+  Duration _previewEta = Duration.zero;
 
   // Reroute rate limit: never recompute more often than once every 3s.
   DateTime? _lastRerouteAt;
@@ -87,6 +105,11 @@ class _MapScreenState extends State<MapScreen> {
 
   StreamSubscription<Position>? _positionStream;
   final MockLocationService _mockService = MockLocationService();
+
+  /// IMU fusion layer (Phase 1: step-based PDR + gyro heading).
+  /// Only engaged when travel mode is walk AND mock mode is off.
+  final FusedLocationSource _fusion = FusedLocationSource();
+  StreamSubscription<SmoothedLocation>? _fusionSub;
 
   // Heading (degrees, 0=north, clockwise)
   double _heading = 0;
@@ -128,6 +151,8 @@ class _MapScreenState extends State<MapScreen> {
     _mockService.removeListener(_onMockLocationChanged);
     FavoriteService().removeListener(_syncFavorites);
     _positionStream?.cancel();
+    _fusionSub?.cancel();
+    _fusion.dispose();
     _joystickTimer?.cancel();
     super.dispose();
   }
@@ -194,8 +219,10 @@ class _MapScreenState extends State<MapScreen> {
 
       currentRoute.clear();
       routingDestination = null;
+      _routeOriginBuilding = null;
       _lastRouteStart = null;
       _isRouting = false;
+      _navState = _NavState.selected;
     });
 
     // Update the selected building highlight on map
@@ -863,8 +890,22 @@ class _MapScreenState extends State<MapScreen> {
 
     const locationSettings = LocationSettings(
       accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 5,
+      // distanceFilter: 0 lets every platform fix through — matches Google
+      // Maps' default. A non-zero filter silently drops updates below the
+      // threshold, which at walking pace can mean multi-second gaps.
+      distanceFilter: 0,
     );
+
+    // IMU fusion emits smoothed positions between GPS fixes whenever
+    // a step is detected or the gyro-corrected heading changes the
+    // dead-reckoned position. We only consume it for walk mode; other
+    // modes pass raw GPS straight through.
+    _fusion.start();
+    _fusionSub = _fusion.stream.listen((smoothed) {
+      if (_mockService.enabled) return;
+      if (_travelMode != TravelMode.walk) return;
+      _handleLocationUpdate(smoothed.position, gpsHeading: smoothed.headingDeg);
+    });
 
     _positionStream =
         Geolocator.getPositionStream(
@@ -897,7 +938,18 @@ class _MapScreenState extends State<MapScreen> {
             _userInsideCampus = inside;
           });
 
-          _handleLocationUpdate(newLocation, gpsHeading: position.heading);
+          if (_travelMode == TravelMode.walk) {
+            // Feed GPS into PDR; the fusion stream callback above will
+            // deliver the smoothed update into _handleLocationUpdate.
+            _fusion.onGpsFix(
+              position: newLocation,
+              gpsHeadingDeg: position.heading,
+              accuracyMeters: position.accuracy,
+              speedMps: position.speed,
+            );
+          } else {
+            _handleLocationUpdate(newLocation, gpsHeading: position.heading);
+          }
         });
   }
 
@@ -909,7 +961,7 @@ class _MapScreenState extends State<MapScreen> {
 
     // Project the user onto the active route. The projection drives both
     // snap-to-path (display smoothing) and the off-route reroute trigger.
-    if (currentRoute.isNotEmpty && !_isCustomRoute) {
+    if (currentRoute.isNotEmpty && _navState == _NavState.navigating) {
       projection = SnapToPathService.projectOnto(rawLocation, currentRoute);
       // Mock GPS doesn't jitter, so we don't snap the displayed dot; but
       // we still use the projection for trimming and reroute decisions.
@@ -957,7 +1009,7 @@ class _MapScreenState extends State<MapScreen> {
     _updateUserLocationDot();
 
     // Rotate map to match heading when navigating
-    if (_mapReady && routingDestination != null && !_isCustomRoute) {
+    if (_mapReady && _navState == _NavState.navigating) {
       try {
         _mapController.animateCamera(
           maplibre.CameraUpdate.newCameraPosition(
@@ -977,8 +1029,8 @@ class _MapScreenState extends State<MapScreen> {
       }
     }
 
-    // Update route in real-time if navigating (not custom A→B)
-    if (routingDestination != null && !_isCustomRoute) {
+    // Real-time reroute only fires once the user has actually started.
+    if (_navState == _NavState.navigating) {
       _checkAndReroute(rawLocation, projection);
     }
   }
@@ -1036,77 +1088,227 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   /// =====================
-  /// Navigation
+  /// Navigation flow
   /// =====================
 
-  Future<void> startNavigation(Building building, {LatLng? customStart}) async {
-    final startPoint = customStart ?? currentLocation;
-    if (startPoint == null) return;
+  /// Sum of segment lengths along a polyline, in meters.
+  double _routeDistanceMeters(List<LatLng> route) {
+    if (route.length < 2) return 0;
+    final d = const Distance();
+    double total = 0;
+    for (int i = 1; i < route.length; i++) {
+      total += d.as(LengthUnit.Meter, route[i - 1], route[i]);
+    }
+    return total;
+  }
 
-    final isCustom = customStart != null;
+  /// Estimated travel time for [meters] under [mode]. Speed presets match
+  /// MockSpeedExtension so the preview stays consistent with mock GPS.
+  Duration _etaFor(double meters, TravelMode mode) {
+    final mps = switch (mode) {
+      TravelMode.walk => 1.4, // 5 km/h
+      TravelMode.bike => 4.2, // 15 km/h
+      TravelMode.car => 8.3, // 30 km/h
+    };
+    if (mps <= 0) return Duration.zero;
+    return Duration(seconds: (meters / mps).round());
+  }
+
+  /// User tapped Directions on the selected card. Compute the route and
+  /// transition to preview. Optionally [originBuilding] picks a custom
+  /// origin (set by Change Start in the preview, or the route picker).
+  Future<void> _handleDirectionsPressed({
+    Building? originBuilding,
+  }) async {
+    final building = selectedBuilding;
+    if (building == null) return;
+
+    final originCenter = originBuilding != null
+        ? polygonCentroid(originBuilding.polygons.first)
+        : currentLocation;
+    if (originCenter == null) return;
 
     setState(() {
       _isRouting = false;
       currentRoute.clear();
       _lastRouteStart = null;
       routingDestination = null;
-      _isCustomRoute = isCustom;
+      _routeOriginBuilding = originBuilding;
     });
 
     final destinationNode = await _navigationService.findNearestNodeToPolygon(
       building.polygons.first,
     );
-
     final destination = destinationNode.position;
-
     routingDestination = destination;
 
     final route = await _navigationService.buildRoute(
-      start: startPoint,
+      start: originCenter,
       destination: destination,
       mode: _travelMode,
     );
 
     if (route.isEmpty) {
-      debugPrint("NO ROUTE FOUND map screen");
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No route found for this travel mode.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
       return;
     }
 
+    final meters = _routeDistanceMeters(route);
     setState(() {
       currentRoute = route;
-      _lastRouteStart = startPoint;
+      _lastRouteStart = originCenter;
+      _previewDistanceMeters = meters;
+      _previewEta = _etaFor(meters, _travelMode);
+      _navState = _NavState.preview;
     });
 
-    // Update the route layer on the map
     await _updateRouteLayer();
+    _fitCameraToRoute(route);
+  }
 
-    // Fit camera to show the full route
-    if (route.length >= 2) {
-      final lats = route.map((p) => p.latitude);
-      final lngs = route.map((p) => p.longitude);
-
-      final sw = maplibre.LatLng(
-        lats.reduce((a, b) => a < b ? a : b),
-        lngs.reduce((a, b) => a < b ? a : b),
-      );
-      final ne = maplibre.LatLng(
-        lats.reduce((a, b) => a > b ? a : b),
-        lngs.reduce((a, b) => a > b ? a : b),
-      );
-
-      _mapController.animateCamera(
-        maplibre.CameraUpdate.newLatLngBounds(
-          maplibre.LatLngBounds(southwest: sw, northeast: ne),
-          left: 50,
-          top: 50,
-          right: 50,
-          bottom: 50,
-        ),
-      );
+  /// User tapped a different mode chip while in preview. Recompute and
+  /// stay in preview.
+  Future<void> _onPreviewModeChanged(TravelMode mode) async {
+    if (mode == _travelMode) return;
+    setState(() {
+      _travelMode = mode;
+    });
+    if (_navState == _NavState.preview) {
+      await _handleDirectionsPressed(originBuilding: _routeOriginBuilding);
+    } else if (_navState == _NavState.navigating) {
+      // Already navigating — recompute on the fly.
+      await _recomputeNavigatingRoute();
     }
   }
 
-  /// Open the route picker sheet for custom A→B navigation.
+  /// Recompute the active route from the current location after an
+  /// in-flight mode change.
+  Future<void> _recomputeNavigatingRoute() async {
+    final start = currentLocation;
+    final dest = routingDestination;
+    if (start == null || dest == null) return;
+    final route = await _navigationService.buildRoute(
+      start: start,
+      destination: dest,
+      mode: _travelMode,
+    );
+    if (!mounted) return;
+    if (route.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No ${_travelMode.name} route available.'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      currentRoute = route;
+      _lastRouteStart = start;
+    });
+    await _updateRouteLayer();
+  }
+
+  /// User tapped Start in the preview. Transition to navigating.
+  void _beginNavigation() {
+    if (_navState != _NavState.preview) return;
+    if (_routeOriginBuilding != null) {
+      // Custom A→B routes are informational; we don't track turn-by-turn
+      // because the user isn't physically at the origin building.
+      return;
+    }
+    setState(() {
+      _navState = _NavState.navigating;
+    });
+  }
+
+  /// Drop the route, return to "selected" (the building stays selected).
+  void _exitPreviewToSelected() {
+    setState(() {
+      _navState = _NavState.selected;
+      currentRoute.clear();
+      _lastRouteStart = null;
+      routingDestination = null;
+      _routeOriginBuilding = null;
+    });
+    _updateRouteLayer();
+  }
+
+  /// Stop navigation and clear the selection entirely. Recenters the
+  /// camera on the user's location so they can see where they are after
+  /// the navigation overlay goes away.
+  void _exitToIdle() {
+    setState(() {
+      _navState = _NavState.idle;
+      currentRoute.clear();
+      _lastRouteStart = null;
+      routingDestination = null;
+      _routeOriginBuilding = null;
+      selectedBuilding = null;
+      selectedBuildingId = null;
+      selectedBuildingCenter = null;
+    });
+    _updateSelectedBuilding();
+    _updateRouteLayer();
+    _selectionService.clear();
+    _recenterOnUser();
+  }
+
+  /// Animate the camera back to the user's current location (if known
+  /// and the map is ready). Used when returning to idle from navigation.
+  void _recenterOnUser() {
+    final loc = currentLocation;
+    if (loc == null || !_mapReady) return;
+    try {
+      _mapController.animateCamera(
+        maplibre.CameraUpdate.newCameraPosition(
+          maplibre.CameraPosition(
+            target: maplibre.LatLng(loc.latitude, loc.longitude),
+            zoom: 17,
+            // Reset tilt/bearing — navigation may have rotated the map.
+            bearing: 0,
+            tilt: 0,
+          ),
+        ),
+      );
+    } catch (e) {
+      _log.warning('Recenter-on-user failed: $e');
+    }
+  }
+
+  /// Fit the map camera to show the entire route polyline.
+  void _fitCameraToRoute(List<LatLng> route) {
+    if (route.length < 2 || !_mapReady) return;
+    final lats = route.map((p) => p.latitude);
+    final lngs = route.map((p) => p.longitude);
+    final sw = maplibre.LatLng(
+      lats.reduce((a, b) => a < b ? a : b),
+      lngs.reduce((a, b) => a < b ? a : b),
+    );
+    final ne = maplibre.LatLng(
+      lats.reduce((a, b) => a > b ? a : b),
+      lngs.reduce((a, b) => a > b ? a : b),
+    );
+    _mapController.animateCamera(
+      maplibre.CameraUpdate.newLatLngBounds(
+        maplibre.LatLngBounds(southwest: sw, northeast: ne),
+        left: 50,
+        top: 50,
+        right: 50,
+        // Leave room for the preview panel at the bottom.
+        bottom: 220,
+      ),
+    );
+  }
+
+  /// Open the route picker sheet for custom A→B preview. After the user
+  /// confirms, computes the route and lands in preview state.
   void _openRoutePicker() async {
     final result = await showModalBottomSheet<RouteRequest>(
       context: context,
@@ -1120,32 +1322,15 @@ class _MapScreenState extends State<MapScreen> {
 
     if (result == null || !mounted) return;
 
-    if (result.origin != null) {
-      // Custom A→B: origin is a building
-      final originCenter = polygonCentroid(result.origin!.polygons.first);
-      setState(() {
-        _routeOriginBuilding = result.origin;
-        selectedBuilding = result.destination;
-        selectedBuildingId = result.destination.id;
-        selectedBuildingCenter = polygonCentroid(
-          result.destination.polygons.first,
-        );
-      });
-      _updateSelectedBuilding();
-      await startNavigation(result.destination, customStart: originCenter);
-    } else {
-      // From current location
-      setState(() {
-        _routeOriginBuilding = null;
-        selectedBuilding = result.destination;
-        selectedBuildingId = result.destination.id;
-        selectedBuildingCenter = polygonCentroid(
-          result.destination.polygons.first,
-        );
-      });
-      _updateSelectedBuilding();
-      await startNavigation(result.destination);
-    }
+    setState(() {
+      selectedBuilding = result.destination;
+      selectedBuildingId = result.destination.id;
+      selectedBuildingCenter = polygonCentroid(
+        result.destination.polygons.first,
+      );
+    });
+    _updateSelectedBuilding();
+    await _handleDirectionsPressed(originBuilding: result.origin);
   }
 
   /// =====================
@@ -1199,35 +1384,7 @@ class _MapScreenState extends State<MapScreen> {
         ),
       ),
       actions: [
-        if (selectedBuilding != null)
-          IconButton(
-            icon: Icon(
-              FavoriteService().isFavorite(selectedBuilding!)
-                  ? Icons.favorite
-                  : Icons.favorite_border,
-              color: AppColors.primaryRed,
-            ),
-            onPressed: () {
-              FavoriteService().toggle(selectedBuilding!);
-              setState(() {});
-            },
-          ),
-        // Route picker (custom A→B)
-        IconButton(
-          icon: const Icon(Icons.alt_route, color: AppColors.primaryRed),
-          tooltip: 'Plan Route',
-          onPressed: _openRoutePicker,
-        ),
-        // Quick navigate from current location (only visible when a target is selected)
-        if (selectedBuilding != null)
-          IconButton(
-            icon: const Icon(Icons.directions, color: AppColors.primaryRed),
-            tooltip: 'Navigate from here',
-            onPressed: () {
-              startNavigation(selectedBuilding!);
-            },
-          ),
-        // Current location button
+        // Center camera on the user's location.
         IconButton(
           icon: const Icon(Icons.my_location, color: AppColors.primaryRed),
           tooltip: 'My Location',
@@ -1245,23 +1402,50 @@ class _MapScreenState extends State<MapScreen> {
             }
           },
         ),
-        // Mock GPS toggle — only allow manual toggle if inside campus or already enabled
-        if (!_mockService.autoEnabled)
-          IconButton(
-            icon: Icon(
-              Icons.gamepad,
-              color: _mockService.enabled
-                  ? Colors.green
-                  : AppColors.brown.withValues(alpha: 0.5),
+        // Power-user / debug actions tucked behind an overflow menu.
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert, color: AppColors.primaryRed),
+          tooltip: 'More',
+          onSelected: (value) {
+            switch (value) {
+              case 'plan_route':
+                _openRoutePicker();
+                break;
+              case 'mock_gps':
+                _mockService.toggle(initialPosition: currentLocation);
+                setState(() {});
+                break;
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'plan_route',
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.alt_route, color: AppColors.primaryRed),
+                title: Text('Plan custom route'),
+              ),
             ),
-            tooltip: _mockService.enabled
-                ? 'Disable Mock GPS'
-                : 'Enable Mock GPS',
-            onPressed: () {
-              _mockService.toggle(initialPosition: currentLocation);
-              setState(() {});
-            },
-          ),
+            if (!_mockService.autoEnabled)
+              PopupMenuItem(
+                value: 'mock_gps',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    Icons.gamepad,
+                    color: _mockService.enabled
+                        ? Colors.green
+                        : AppColors.brown,
+                  ),
+                  title: Text(
+                    _mockService.enabled
+                        ? 'Disable Mock GPS'
+                        : 'Enable Mock GPS',
+                  ),
+                ),
+              ),
+          ],
+        ),
       ],
     );
   }
@@ -1333,13 +1517,6 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
         ),
-        // Travel mode selector (only visible while actively routing)
-        if (routingDestination != null)
-          Positioned(
-            top: 8,
-            right: 8,
-            child: _buildTravelModeSelector(),
-          ),
         // Mock GPS indicator badge + speed selector
         if (_mockService.enabled)
           Positioned(
@@ -1461,91 +1638,100 @@ class _MapScreenState extends State<MapScreen> {
           ),
         // Mock controls overlay (only when mock mode is active)
         if (_mockService.enabled) _buildMockControls(),
-        // Selected building info card
-        if (selectedBuilding != null) _buildSelectedCard(),
+        // Bottom UI: depends on the navigation state.
+        if (_navState == _NavState.selected) _buildSelectedCard(),
+        if (_navState == _NavState.preview) _buildPreviewPanel(),
+        if (_navState == _NavState.navigating) _buildNavigatingBar(),
       ],
     );
   }
 
   /// ---------------------
-  /// Travel Mode Selector
+  /// Preview panel (post-Directions, pre-Start)
   /// ---------------------
-  Widget _buildTravelModeSelector() {
-    return Material(
-      elevation: 3,
-      borderRadius: BorderRadius.circular(24),
-      color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _modeButton(TravelMode.walk, Icons.directions_walk),
-            _modeButton(TravelMode.bike, Icons.directions_bike),
-            _modeButton(TravelMode.car, Icons.directions_car),
-          ],
-        ),
+  Widget _buildPreviewPanel() {
+    final building = selectedBuilding;
+    if (building == null) return const SizedBox.shrink();
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: RoutePreviewPanel(
+        originLabel: _routeOriginBuilding?.name,
+        destinationLabel: building.name,
+        destinationTypeLabel: building.type.displayName,
+        distanceMeters: _previewDistanceMeters,
+        eta: _previewEta,
+        mode: _travelMode,
+        canStartNavigation: _routeOriginBuilding == null,
+        onStart: _beginNavigation,
+        onClose: _exitPreviewToSelected,
+        onChangeStart: _openRoutePicker,
+        onModeChanged: _onPreviewModeChanged,
       ),
     );
   }
 
-  Widget _modeButton(TravelMode mode, IconData icon) {
-    final selected = _travelMode == mode;
-    return InkWell(
-      borderRadius: BorderRadius.circular(20),
-      onTap: () => _onTravelModeChanged(mode),
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primaryRed : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Icon(
-          icon,
-          size: 22,
-          color: selected ? Colors.white : AppColors.darkBrown,
-        ),
-      ),
-    );
-  }
-
-  Future<void> _onTravelModeChanged(TravelMode mode) async {
-    if (mode == _travelMode) return;
-    setState(() {
-      _travelMode = mode;
-    });
-
-    final start = currentLocation;
-    final dest = routingDestination;
-    if (start == null || dest == null) return;
-
-    final route = await _navigationService.buildRoute(
-      start: start,
-      destination: dest,
-      mode: mode,
-    );
-
-    if (!mounted) return;
-    if (route.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            mode == TravelMode.car
-                ? 'No car route available — roads not yet tagged in this area.'
-                : 'No ${mode.name} route available.',
+  /// ---------------------
+  /// Navigating bar (slim status + End button)
+  /// ---------------------
+  Widget _buildNavigatingBar() {
+    final building = selectedBuilding;
+    if (building == null) return const SizedBox.shrink();
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    return Positioned(
+      left: 12,
+      right: 12,
+      bottom: 12 + bottomInset,
+      child: Material(
+        elevation: 6,
+        color: AppColors.primaryRed,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      RoutePreviewPanel.formatEta(_previewEta),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      '${RoutePreviewPanel.formatDistance(_previewDistanceMeters)} · to ${building.name}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _exitToIdle,
+                icon: const Icon(Icons.close, color: Colors.white),
+                label: const Text(
+                  'End',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ),
-          duration: const Duration(seconds: 2),
         ),
-      );
-      return;
-    }
-
-    setState(() {
-      currentRoute = route;
-      _lastRouteStart = start;
-    });
-    await _updateRouteLayer();
+      ),
+    );
   }
 
   /// ---------------------
@@ -1854,6 +2040,8 @@ class _MapScreenState extends State<MapScreen> {
   /// Selected Building Card
   /// ---------------------
   Widget _buildSelectedCard() {
+    final building = selectedBuilding!;
+    final isFavorite = FavoriteService().isFavorite(building);
     return Positioned(
       bottom: 16,
       left: 16,
@@ -1862,76 +2050,94 @@ class _MapScreenState extends State<MapScreen> {
         elevation: 4,
         shadowColor: Colors.red.withValues(alpha: 0.3),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        color: Colors.white.withValues(alpha: 0.95),
+        color: Colors.white.withValues(alpha: 0.97),
         child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFCDD2).withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.location_city,
-                  color: AppColors.primaryRed,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      selectedBuilding!.name,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.darkBrown,
-                      ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFCDD2).withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      selectedBuilding!.type.displayName,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: const Color(0xFF5D4037).withValues(alpha: 0.8),
-                      ),
+                    child: const Icon(
+                      Icons.location_city,
+                      color: AppColors.primaryRed,
+                      size: 24,
                     ),
-                    if (_routeOriginBuilding != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'From: ${_routeOriginBuilding!.name}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: const Color(0xFF4CAF50).withValues(alpha: 0.9),
-                          fontWeight: FontWeight.w500,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          building.name,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.darkBrown,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ],
-                  ],
-                ),
+                        const SizedBox(height: 2),
+                        Text(
+                          building.type.displayName,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: const Color(0xFF5D4037).withValues(alpha: 0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: AppColors.primaryRed,
+                    ),
+                    tooltip: isFavorite ? 'Unfavorite' : 'Favorite',
+                    onPressed: () {
+                      FavoriteService().toggle(building);
+                      setState(() {});
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Color(0xFF5D4037)),
+                    tooltip: 'Close',
+                    onPressed: _exitToIdle,
+                  ),
+                ],
               ),
-              IconButton(
-                icon: const Icon(Icons.close, color: Color(0xFF5D4037)),
-                onPressed: () {
-                  setState(() {
-                    selectedBuilding = null;
-                    selectedBuildingId = null;
-                    selectedBuildingCenter = null;
-                    currentRoute.clear();
-                    _lastRouteStart = null;
-                    routingDestination = null;
-                    _routeOriginBuilding = null;
-                    _isCustomRoute = false;
-                  });
-                  _updateSelectedBuilding();
-                  _updateRouteLayer();
-                  _selectionService.clear();
-                },
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 44,
+                child: ElevatedButton.icon(
+                  onPressed: () => _handleDirectionsPressed(),
+                  icon: const Icon(Icons.directions, color: Colors.white),
+                  label: const Text(
+                    'Directions',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryRed,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 1,
+                  ),
+                ),
               ),
             ],
           ),
