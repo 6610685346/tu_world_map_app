@@ -75,6 +75,12 @@ class _MapScreenState extends State<MapScreen> {
   bool _mapReady = false;
   bool _isCustomRoute = false; // true when using building-to-building route
   TravelMode _travelMode = TravelMode.walk;
+
+  // Reroute rate limit: never recompute more often than once every 3s.
+  DateTime? _lastRerouteAt;
+  static const double _offRouteThresholdMeters = 25.0;
+  static const double _movedThresholdMeters = 10.0;
+  static const Duration _rerouteCooldown = Duration(seconds: 3);
   bool _userInsideCampus =
       false; // whether real GPS is inside university bounds
   String? _styleJson;
@@ -899,10 +905,31 @@ class _MapScreenState extends State<MapScreen> {
   /// Applies snap-to-path when a route is active.
   void _handleLocationUpdate(LatLng rawLocation, {double? gpsHeading}) {
     LatLng displayLocation = rawLocation;
+    RouteProjection? projection;
 
-    // Apply snap-to-path if we have an active route (skip for mock GPS — no jitter)
-    if (currentRoute.isNotEmpty && !_isCustomRoute && !_mockService.enabled) {
-      displayLocation = SnapToPathService.snap(rawLocation, currentRoute);
+    // Project the user onto the active route. The projection drives both
+    // snap-to-path (display smoothing) and the off-route reroute trigger.
+    if (currentRoute.isNotEmpty && !_isCustomRoute) {
+      projection = SnapToPathService.projectOnto(rawLocation, currentRoute);
+      // Mock GPS doesn't jitter, so we don't snap the displayed dot; but
+      // we still use the projection for trimming and reroute decisions.
+      if (projection != null &&
+          !_mockService.enabled &&
+          projection.distanceMeters <= _offRouteThresholdMeters) {
+        displayLocation = projection.point;
+      }
+    }
+
+    // Trim the portion of the route already behind the user so the red
+    // line doesn't trail. Only trim when the user is reasonably on-route;
+    // if they're far off, the reroute path below will rebuild the line.
+    if (projection != null &&
+        projection.distanceMeters <= _offRouteThresholdMeters) {
+      final trimmed = SnapToPathService.trimFrom(currentRoute, projection);
+      if (trimmed.length >= 2 && trimmed.length != currentRoute.length) {
+        currentRoute = trimmed;
+        _updateRouteLayer();
+      }
     }
 
     // Estimate heading from movement if no sensor heading provided
@@ -952,26 +979,38 @@ class _MapScreenState extends State<MapScreen> {
 
     // Update route in real-time if navigating (not custom A→B)
     if (routingDestination != null && !_isCustomRoute) {
-      // Use raw location for reroute distance check
-      _checkAndReroute(rawLocation);
+      _checkAndReroute(rawLocation, projection);
     }
   }
 
-  /// Check if the user has moved enough to warrant a reroute.
-  Future<void> _checkAndReroute(LatLng rawLocation) async {
+  /// Decide whether to recompute the route, and do so if needed. Fires on
+  /// two triggers: (a) user has moved >10m since the last reroute, or
+  /// (b) user is >25m from the drawn route (off-graph detour, shortcut).
+  /// A 3s cooldown prevents rapid rerouting from GPS jitter.
+  Future<void> _checkAndReroute(
+    LatLng rawLocation,
+    RouteProjection? projection,
+  ) async {
     if (_isRouting) return;
     if (routingDestination == null) return;
 
-    if (_lastRouteStart != null) {
-      final moved = const Distance().as(
-        LengthUnit.Meter,
-        _lastRouteStart!,
-        rawLocation,
-      );
-      if (moved < 10) return;
+    final now = DateTime.now();
+    if (_lastRerouteAt != null &&
+        now.difference(_lastRerouteAt!) < _rerouteCooldown) {
+      return;
     }
 
+    final distance = const Distance();
+    final movedEnough = _lastRouteStart == null ||
+        distance.as(LengthUnit.Meter, _lastRouteStart!, rawLocation) >
+            _movedThresholdMeters;
+    final offRoute = projection != null &&
+        projection.distanceMeters > _offRouteThresholdMeters;
+
+    if (!movedEnough && !offRoute) return;
+
     _isRouting = true;
+    _lastRerouteAt = now;
 
     try {
       final newRoute = await _navigationService.buildRoute(
