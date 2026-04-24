@@ -7,6 +7,7 @@ import 'package:tu_world_map_app/services/map_selection_service.dart';
 import 'package:tu_world_map_app/services/recent_location_service.dart';
 import 'package:tu_world_map_app/services/search_history_service.dart';
 import 'package:tu_world_map_app/services/favorite_service.dart';
+import 'package:tu_world_map_app/widgets/building_image.dart';
 
 class SearchScreen extends StatefulWidget {
   final Function(int) onTabChange;
@@ -242,28 +243,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child:
-              (building.imageUrl.contains('ibb.co') ||
-                  (!building.imageUrl.endsWith('.png') &&
-                      !building.imageUrl.endsWith('.jpg') &&
-                      !building.imageUrl.endsWith('.jpeg')))
-              ? Container(
-                  width: 50,
-                  height: 50,
-                  color: Colors.grey.withValues(alpha: 0.2),
-                  child: const Icon(Icons.link, size: 30, color: Colors.grey),
-                )
-              : Image.network(
-                  building.imageUrl,
-                  width: 50,
-                  height: 50,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => const Icon(
-                    Icons.image_not_supported,
-                    size: 40,
-                    color: Colors.grey,
-                  ),
-                ),
+          child: BuildingImage(imageUrl: building.imageUrl),
         ),
 
         title: Text(
