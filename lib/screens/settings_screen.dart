@@ -24,11 +24,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _launchFeedbackUrl() async {
-    final Uri url = Uri.parse('mailto:support@tuworldmap.com?subject=App%20Feedback');
-    if (!await launchUrl(url)) {
+    final Uri url = Uri.parse('https://forms.gle/uPmQa8tYAtLcDfCf7');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open email client to send feedback')),
+          const SnackBar(content: Text('Could not open the feedback form')),
         );
       }
     }
