@@ -65,10 +65,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             Text(
               'Customize your experience',
-              style: TextStyle(
-                fontSize: 14,
-                color: Color(0xFF5D4037),
-              ),
+              style: TextStyle(fontSize: 14, color: Color(0xFF5D4037)),
             ),
           ],
         ),
@@ -78,11 +75,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFFFFBF5),
-              Color(0xFFFFF8F0),
-              Color(0xFFFFF3E8),
-            ],
+            colors: [Color(0xFFFFFBF5), Color(0xFFFFF8F0), Color(0xFFFFF3E8)],
           ),
         ),
         child: SingleChildScrollView(
@@ -241,6 +234,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       context: context,
                       applicationName: 'TU World Map',
                       applicationVersion: '1.0.0',
+                      applicationIcon: Image.asset(
+                        'assets/images/app_logo.png',
+                        height: 60,
+                        width: 60,
+                      ),
                     );
                   },
                 ),
@@ -251,19 +249,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Center(
                 child: Column(
                   children: [
-                    Icon(
-                      Icons.school,
-                      size: 48,
-                      color: const Color(0xFFD32F2F).withValues(alpha: 0.3),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'TU World Map',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF3E2723),
-                      ),
+                    Image.asset(
+                      'assets/images/app_logo.png',
+                      height: 100,
+                      fit: BoxFit.contain,
                     ),
                     const SizedBox(height: 4),
                     const Text(
@@ -290,7 +279,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         style: const TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.bold,
-          color: Color(0xFF3E2723), 
+          color: Color(0xFF3E2723),
         ),
       ),
     );
@@ -409,13 +398,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          content: Text(message, style: const TextStyle(color: Color(0xFF5D4037))),
+          content: Text(
+            message,
+            style: const TextStyle(color: Color(0xFF5D4037)),
+          ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('Cancel', style: TextStyle(color: Color(0xFF8D6E63))),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Color(0xFF8D6E63)),
+              ),
             ),
             ElevatedButton(
               onPressed: () {
