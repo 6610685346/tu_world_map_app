@@ -39,12 +39,14 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Campus Map App',
+      title: 'TU World Map',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
       ),
       initialRoute: '/',
-      home: SettingsService().firstLaunch ? const TUWorldMapOnboarding() : const MainNavigationScreen(),
+      home: SettingsService().firstLaunch
+          ? const TUWorldMapOnboarding()
+          : const MainNavigationScreen(),
     );
   }
 }
