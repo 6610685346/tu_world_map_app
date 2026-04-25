@@ -20,6 +20,7 @@ import 'package:tu_world_map_app/services/favorite_service.dart';
 import 'package:tu_world_map_app/services/mock_location_service.dart';
 import 'package:tu_world_map_app/services/snap_to_path_service.dart';
 import 'package:tu_world_map_app/services/fused_location_source.dart';
+import 'package:tu_world_map_app/services/geometry_service.dart';
 import 'package:tu_world_map_app/screens/route_picker_sheet.dart';
 import 'package:tu_world_map_app/screens/route_preview_panel.dart';
 
@@ -109,6 +110,8 @@ class _MapScreenState extends State<MapScreen> {
   /// True after the user declined Mock GPS when prompted. Hides location
   /// features until they manually enable Mock GPS from the overflow menu.
   bool _locationDisabled = false;
+  /// user chose NOT to use Mock GPS while outside
+  bool _isGpsSuppressed = false;
   /// Prevents showing the outside-campus dialog more than once at a time.
   bool _outsideCampusPromptActive = false;
   String? _styleJson;
@@ -1050,7 +1053,10 @@ class _MapScreenState extends State<MapScreen> {
           // GPS sees the user back on campus.
           if (inside) {
             if (_locationDisabled) setState(() => _locationDisabled = false);
-            if (_mockService.autoEnabled) _mockService.disable();
+            if (_mockService.autoEnabled || _isGpsSuppressed) {
+              _mockService.disable();
+              _isGpsSuppressed = false;
+            }
             _outsideCampusPromptActive = false;
           }
 
@@ -1060,14 +1066,25 @@ class _MapScreenState extends State<MapScreen> {
           if (_mockService.enabled) return;
 
           // If user is outside campus and we haven't asked yet, prompt them.
-          if (!inside && !_locationDisabled && !_outsideCampusPromptActive) {
+          if (!inside &&
+              !_locationDisabled &&
+              !_outsideCampusPromptActive &&
+              !_isGpsSuppressed &&
+              _selectionService.isMapTabActive) {
             _outsideCampusPromptActive = true;
             _showOutsideCampusDialog();
             return;
           }
 
-          // Skip all location processing while the user has disabled GPS.
-          if (_locationDisabled && !_mockService.enabled) return;
+          // Skip all location processing while the user has disabled GPS or suppressed it.
+          if ((_locationDisabled || _isGpsSuppressed) && !_mockService.enabled) {
+            setState(() {
+              if (!inside && _isGpsSuppressed) {
+                currentLocation = null;
+              }
+            });
+            return;
+          }
 
           if (_travelMode == TravelMode.walk) {
             // Feed GPS into PDR; the fusion stream callback above will
@@ -1132,19 +1149,36 @@ class _MapScreenState extends State<MapScreen> {
       _heading = _mockService.heading;
     }
 
-    // Live remaining distance / ETA + arrival detection. Both checks run
-    // off the trimmed route — every position update shrinks the remaining
-    // length so the navigating bar refreshes in real time.
+    // Live remaining distance / ETA + arrival detection.
     double? remainingMeters;
     bool arrived = false;
     if (_navState == _NavState.navigating && routingDestination != null) {
       remainingMeters = _routeDistanceMeters(currentRoute);
-      final dToDest = const Distance().as(
+
+      // Arrival detection triggers if:
+      // 1. User is inside or very near the building's boundary (the "big box").
+      // 2. User is very near the calculated entrance (routingDestination).
+      // 3. Remaining route distance is below the threshold.
+      bool isInsideOrNearBuilding = false;
+      if (selectedBuilding != null) {
+        for (final polygon in selectedBuilding!.polygons) {
+          // minDistanceToPolygon returns 0.0 if the user is inside the polygon.
+          if (GeometryService.minDistanceToPolygon(rawLocation, polygon) <=
+              _arrivalThresholdMeters) {
+            isInsideOrNearBuilding = true;
+            break;
+          }
+        }
+      }
+
+      final directDistanceToEntrance = const Distance().as(
         LengthUnit.Meter,
         rawLocation,
         routingDestination!,
       );
-      if (dToDest <= _arrivalThresholdMeters ||
+
+      if (isInsideOrNearBuilding ||
+          directDistanceToEntrance <= _arrivalThresholdMeters ||
           remainingMeters <= _arrivalThresholdMeters) {
         arrived = true;
       }
@@ -1492,11 +1526,18 @@ class _MapScreenState extends State<MapScreen> {
         initialPosition: const LatLng(14.0723, 100.6034),
         auto: true,
       );
+      setState(() {
+        _isGpsSuppressed = false;
+      });
     } else {
       // "No" — disable visible location features but keep mock service running
       // silently at campus center so currentLocation is never null for routing.
       // _onMockLocationChanged will set currentLocation and clear the dot.
-      setState(() => _locationDisabled = true);
+      setState(() {
+        _locationDisabled = true;
+        _isGpsSuppressed = true;
+        currentLocation = null;
+      });
       _mockService.enable(
         initialPosition: const LatLng(14.0723, 100.6034),
         auto: true,
@@ -1564,8 +1605,15 @@ class _MapScreenState extends State<MapScreen> {
         initialPosition: const LatLng(14.0723, 100.6034),
         auto: true,
       );
+      setState(() {
+        _isGpsSuppressed = false;
+      });
     } else {
-      setState(() => _locationDisabled = true);
+      setState(() {
+        _locationDisabled = true;
+        _isGpsSuppressed = true;
+        currentLocation = null;
+      });
       _mockService.enable(
         initialPosition: const LatLng(14.0723, 100.6034),
         auto: true,
@@ -1700,7 +1748,7 @@ class _MapScreenState extends State<MapScreen> {
         // When location is disabled (no GPS/outside campus), show a
         // "Return to Campus" button that flies the camera to campus center.
         // Otherwise show the normal "My Location" tracker.
-        if (_locationDisabled)
+        if (_locationDisabled || _isGpsSuppressed)
           IconButton(
             icon: const Icon(Icons.explore, color: AppColors.brown),
             tooltip: 'Return to Campus',
@@ -1747,20 +1795,35 @@ class _MapScreenState extends State<MapScreen> {
                 _openRoutePicker();
                 break;
               case 'mock_gps':
-                if (_locationDisabled) {
+                if (_locationDisabled || _isGpsSuppressed) {
                   // Silent fallback → surface as full Mock GPS with controls.
                   // Re-enable without auto flag to drop the "outside campus" badge.
                   _mockService.enable(initialPosition: _mockService.mockPosition);
-                  setState(() => _locationDisabled = false);
+                  setState(() {
+                    _locationDisabled = false;
+                    _isGpsSuppressed = false;
+                  });
                 } else if (_mockService.autoEnabled) {
                   // Auto-mock (outside campus) → switch to silent fallback.
                   // Keep mock running so currentLocation stays valid; just hide UI.
-                  setState(() => _locationDisabled = true);
+                  setState(() {
+                    _locationDisabled = true;
+                    _isGpsSuppressed = true;
+                  });
                 } else {
                   // Normal manual toggle.
+                  final wasEnabled = _mockService.enabled;
                   _mockService.toggle(initialPosition: currentLocation);
                   setState(() {
-                    if (_mockService.enabled) _locationDisabled = false;
+                    if (_mockService.enabled) {
+                      _locationDisabled = false;
+                      _isGpsSuppressed = false;
+                    } else if (!_isInsideCampus(LatLng(currentLocation?.latitude ?? 0, currentLocation?.longitude ?? 0))) {
+                      // If we just disabled it and we're outside, set suppression to true
+                      _locationDisabled = true;
+                      _isGpsSuppressed = true;
+                      currentLocation = null;
+                    }
                   });
                 }
                 break;

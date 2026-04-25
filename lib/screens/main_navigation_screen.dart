@@ -5,6 +5,7 @@ import 'map_screen.dart';
 import 'search_screen.dart';
 import 'favorite_screen.dart';
 import 'settings_screen.dart';
+import 'package:tu_world_map_app/services/map_selection_service.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -20,11 +21,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     setState(() {
       _selectedIndex = index;
     });
+    // Map tab is at index 1
+    MapSelectionService().setMapTabActive(index == 1);
   }
 
   @override
   void initState() {
     super.initState();
+    // Initialize active state based on default index
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      MapSelectionService().setMapTabActive(_selectedIndex == 1);
+    });
   }
 
   @override
