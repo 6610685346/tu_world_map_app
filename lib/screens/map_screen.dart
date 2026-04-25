@@ -103,25 +103,34 @@ class _MapScreenState extends State<MapScreen> {
   DateTime? _lastRerouteAt;
   static const double _offRouteThresholdMeters = 25.0;
   static const double _movedThresholdMeters = 10.0;
+
   /// Distance from the destination (in meters) at which navigation is
   /// considered complete. Either direct distance to the destination or the
   /// remaining route length crossing this threshold triggers arrival.
   static const double _arrivalThresholdMeters = 15.0;
   static const Duration _rerouteCooldown = Duration(seconds: 3);
+
   /// True after the user declined Mock GPS when prompted. Hides location
   /// features until they manually enable Mock GPS from the overflow menu.
   bool _locationDisabled = false;
+
   /// user chose NOT to use Mock GPS while outside
   bool _isGpsSuppressed = false;
+
   /// Prevents showing the outside-campus dialog more than once at a time.
   bool _outsideCampusPromptActive = false;
+
   /// Prevents showing the location-unavailable (services off/denied) dialog
   /// more than once at a time.
   bool _locationUnavailablePromptActive = false;
+
   /// True while the initial (or re-enabled) location check is in progress.
   /// Shows a "please wait" overlay and locks interaction.
   bool _isVerifyingLocation = true;
   String? _styleJson;
+
+  /// Helper to check if "My Location" features should be enabled.
+  bool get _canUseMyLocation => !_locationDisabled && !_isGpsSuppressed;
 
   StreamSubscription<Position>? _positionStream;
   StreamSubscription<ServiceStatus>? _serviceStatusSub;
@@ -131,6 +140,7 @@ class _MapScreenState extends State<MapScreen> {
   /// Only engaged when travel mode is walk AND mock mode is off.
   final FusedLocationSource _fusion = FusedLocationSource();
   StreamSubscription<SmoothedLocation>? _fusionSub;
+  Timer? _verificationTimer;
 
   // Heading (degrees, 0=north, clockwise)
   double _heading = 0;
@@ -177,6 +187,7 @@ class _MapScreenState extends State<MapScreen> {
     _fusionSub?.cancel();
     _fusion.dispose();
     _joystickTimer?.cancel();
+    _verificationTimer?.cancel();
     super.dispose();
   }
 
@@ -919,8 +930,9 @@ class _MapScreenState extends State<MapScreen> {
   /// initState so the watch is active even when GPS fails at startup.
   void _startServiceStatusWatch() {
     if (_serviceStatusSub != null) return;
-    _serviceStatusSub =
-        Geolocator.getServiceStatusStream().listen((ServiceStatus status) {
+    _serviceStatusSub = Geolocator.getServiceStatusStream().listen((
+      ServiceStatus status,
+    ) {
       if (!mounted) return;
       if (status == ServiceStatus.disabled) {
         _onLocationServiceDisabled();
@@ -972,6 +984,17 @@ class _MapScreenState extends State<MapScreen> {
       _isVerifyingLocation = true;
     });
 
+    // Safety timeout: if we don't get a fix within 10 seconds, unlock the screen.
+    _verificationTimer?.cancel();
+    _verificationTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted && _isVerifyingLocation) {
+        _log.warning(
+          'Location verification timed out after service re-enabled',
+        );
+        setState(() => _isVerifyingLocation = false);
+      }
+    });
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Location services restored. Reconnecting GPS…'),
@@ -986,6 +1009,7 @@ class _MapScreenState extends State<MapScreen> {
   /// Location (Real-Time)
   /// =====================
   Future<void> _getCurrentLocation() async {
+    // Always cancel any existing pipeline first so restarts don't create fresh streams.
     // Cancel any existing pipeline first so restarts don't create duplicate streams.
     await _positionStream?.cancel();
     _positionStream = null;
@@ -1050,67 +1074,76 @@ class _MapScreenState extends State<MapScreen> {
     });
 
     _positionStream =
-        Geolocator.getPositionStream(
-          locationSettings: locationSettings,
-        ).listen((Position position) async {
-          final newLocation = LatLng(position.latitude, position.longitude);
-          final inside = _isInsideCampus(newLocation);
+        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+          (Position position) async {
+            final newLocation = LatLng(position.latitude, position.longitude);
+            final inside = _isInsideCampus(newLocation);
 
-          if (_isVerifyingLocation && inside) {
-            setState(() => _isVerifyingLocation = false);
-          }
-
-          // Re-entry check runs BEFORE the mock guard so that silent fallback
-          // (mock enabled, _locationDisabled true) can recover the moment real
-          // GPS sees the user back on campus.
-          if (inside) {
-            if (_locationDisabled) setState(() => _locationDisabled = false);
-            if (_mockService.autoEnabled || _isGpsSuppressed) {
-              _mockService.disable();
-              _isGpsSuppressed = false;
+            if (_isVerifyingLocation && inside) {
+              _verificationTimer?.cancel();
+              setState(() => _isVerifyingLocation = false);
             }
-            _outsideCampusPromptActive = false;
-          }
 
-          // Skip real GPS updates when mock mode is still active (manual mode,
-          // or auto-mode where the user is still outside campus). After re-entry
-          // above, auto-mock is already disabled so this only fires for manual mock.
-          if (_mockService.enabled) return;
-
-          // If user is outside campus and we haven't asked yet, prompt them.
-          if (!inside &&
-              !_locationDisabled &&
-              !_outsideCampusPromptActive &&
-              !_isGpsSuppressed &&
-              _selectionService.isMapTabActive) {
-            _outsideCampusPromptActive = true;
-            _showOutsideCampusDialog();
-            return;
-          }
-
-          // Skip all location processing while the user has disabled GPS or suppressed it.
-          if ((_locationDisabled || _isGpsSuppressed) && !_mockService.enabled) {
-            setState(() {
-              if (!inside && _isGpsSuppressed) {
-                currentLocation = null;
+            // Re-entry check runs BEFORE the mock guard so that silent fallback
+            // (mock enabled, _locationDisabled true) can recover the moment real
+            // GPS sees the user back on campus.
+            if (inside) {
+              if (_locationDisabled) setState(() => _locationDisabled = false);
+              if (_mockService.autoEnabled || _isGpsSuppressed) {
+                _mockService.disable();
+                _isGpsSuppressed = false;
               }
-            });
-            return;
-          }
+              _outsideCampusPromptActive = false;
+            }
 
-          if (_travelMode == TravelMode.walk) {
-            // Feed GPS into PDR; the fusion stream callback above will
-            // deliver the smoothed update into _handleLocationUpdate.
-            _fusion.onGpsFix(
-              position: newLocation,
-              gpsHeadingDeg: position.heading,
-              accuracyMeters: position.accuracy,
-              speedMps: position.speed,
-            );
-          } else {
-            _handleLocationUpdate(newLocation, gpsHeading: position.heading);
-          }
-        });
+            // Skip real GPS updates when mock mode is still active (manual mode,
+            // or auto-mode where the user is still outside campus). After re-entry
+            // above, auto-mock is already disabled so this only fires for manual mock.
+            if (_mockService.enabled) return;
+
+            // If user is outside campus and we haven't asked yet, prompt them.
+            if (!inside &&
+                !_locationDisabled &&
+                !_outsideCampusPromptActive &&
+                !_isGpsSuppressed &&
+                _selectionService.isMapTabActive) {
+              _outsideCampusPromptActive = true;
+              _showOutsideCampusDialog();
+              return;
+            }
+
+            // Skip all location processing while the user has disabled GPS or suppressed it.
+            if ((_locationDisabled || _isGpsSuppressed) &&
+                !_mockService.enabled) {
+              setState(() {
+                if (!inside && _isGpsSuppressed) {
+                  currentLocation = null;
+                }
+              });
+              return;
+            }
+
+            if (_travelMode == TravelMode.walk) {
+              // Feed GPS into PDR; the fusion stream callback above will
+              // deliver the smoothed update into _handleLocationUpdate.
+              _fusion.onGpsFix(
+                position: newLocation,
+                gpsHeadingDeg: position.heading,
+                accuracyMeters: position.accuracy,
+                speedMps: position.speed,
+              );
+            } else {
+              _handleLocationUpdate(newLocation, gpsHeading: position.heading);
+            }
+          },
+          onError: (e) {
+            _log.warning('Location stream error: $e');
+            _verificationTimer?.cancel();
+            if (mounted) {
+              setState(() => _isVerifyingLocation = false);
+            }
+          },
+        );
   }
 
   /// Unified location update handler for both real GPS and mock GPS.
@@ -1282,10 +1315,12 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     final distance = const Distance();
-    final movedEnough = _lastRouteStart == null ||
+    final movedEnough =
+        _lastRouteStart == null ||
         distance.as(LengthUnit.Meter, _lastRouteStart!, rawLocation) >
             _movedThresholdMeters;
-    final offRoute = projection != null &&
+    final offRoute =
+        projection != null &&
         projection.distanceMeters > _offRouteThresholdMeters;
 
     if (!movedEnough && !offRoute) return;
@@ -1346,9 +1381,7 @@ class _MapScreenState extends State<MapScreen> {
   /// User tapped Directions on the selected card. Compute the route and
   /// transition to preview. Optionally [originBuilding] picks a custom
   /// origin (set by Change Start in the preview, or the route picker).
-  Future<void> _handleDirectionsPressed({
-    Building? originBuilding,
-  }) async {
+  Future<void> _handleDirectionsPressed({Building? originBuilding}) async {
     final building = selectedBuilding;
     if (building == null) return;
 
@@ -1557,6 +1590,7 @@ class _MapScreenState extends State<MapScreen> {
         auto: true,
       );
     }
+    _verificationTimer?.cancel();
     setState(() {
       _isVerifyingLocation = false;
       _locationUnavailablePromptActive = false;
@@ -1592,10 +1626,7 @@ class _MapScreenState extends State<MapScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text(
-              'No',
-              style: TextStyle(color: AppColors.brown),
-            ),
+            child: const Text('No', style: TextStyle(color: AppColors.brown)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -1607,7 +1638,10 @@ class _MapScreenState extends State<MapScreen> {
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text(
               'Enable Mock GPS',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -1637,6 +1671,7 @@ class _MapScreenState extends State<MapScreen> {
         auto: true,
       );
     }
+    _verificationTimer?.cancel();
     setState(() => _isVerifyingLocation = false);
   }
 
@@ -1697,6 +1732,7 @@ class _MapScreenState extends State<MapScreen> {
       builder: (context) => RoutePickerSheet(
         initialDestination: selectedBuilding,
         buildings: buildings,
+        canUseMyLocation: _canUseMyLocation,
       ),
     );
 
@@ -1809,7 +1845,9 @@ class _MapScreenState extends State<MapScreen> {
           color: AppColors.cream,
           surfaceTintColor: Colors.transparent,
           elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           onSelected: (value) {
             if (_isVerifyingLocation) return;
             switch (value) {
@@ -1820,7 +1858,9 @@ class _MapScreenState extends State<MapScreen> {
                 if (_locationDisabled || _isGpsSuppressed) {
                   // Silent fallback → surface as full Mock GPS with controls.
                   // Re-enable without auto flag to drop the "outside campus" badge.
-                  _mockService.enable(initialPosition: _mockService.mockPosition);
+                  _mockService.enable(
+                    initialPosition: _mockService.mockPosition,
+                  );
                   setState(() {
                     _locationDisabled = false;
                     _isGpsSuppressed = false;
@@ -1856,7 +1896,11 @@ class _MapScreenState extends State<MapScreen> {
               value: 'plan_route',
               child: Row(
                 children: [
-                  const Icon(Icons.alt_route, color: AppColors.primaryRed, size: 20),
+                  const Icon(
+                    Icons.alt_route,
+                    color: AppColors.primaryRed,
+                    size: 20,
+                  ),
                   const SizedBox(width: 12),
                   const Text(
                     'Plan custom route',
@@ -2670,7 +2714,9 @@ class _MapScreenState extends State<MapScreen> {
                           building.type.displayName,
                           style: TextStyle(
                             fontSize: 13,
-                            color: const Color(0xFF5D4037).withValues(alpha: 0.8),
+                            color: const Color(
+                              0xFF5D4037,
+                            ).withValues(alpha: 0.8),
                           ),
                         ),
                       ],
@@ -2698,11 +2744,13 @@ class _MapScreenState extends State<MapScreen> {
               SizedBox(
                 height: 44,
                 child: ElevatedButton.icon(
-                  onPressed: () => _handleDirectionsPressed(),
+                  onPressed: _canUseMyLocation
+                      ? () => _handleDirectionsPressed()
+                      : null,
                   icon: const Icon(Icons.directions, color: Colors.white),
-                  label: const Text(
-                    'Directions',
-                    style: TextStyle(
+                  label: Text(
+                    _canUseMyLocation ? 'Directions' : 'Location Required',
+                    style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                       fontSize: 15,

@@ -22,10 +22,14 @@ class RoutePickerSheet extends StatefulWidget {
   /// All buildings available for selection.
   final List<Building> buildings;
 
+  /// Whether the "My Location" option is allowed (e.g. GPS is available/on-campus).
+  final bool canUseMyLocation;
+
   const RoutePickerSheet({
     super.key,
     this.initialDestination,
     required this.buildings,
+    this.canUseMyLocation = true,
   });
 
   @override
@@ -57,7 +61,7 @@ class _RoutePickerSheetState extends State<RoutePickerSheet> {
       backgroundColor: Colors.transparent,
       builder: (context) => _BuildingSearchPicker(
         buildings: widget.buildings,
-        showMyLocation: isOrigin,
+        showMyLocation: isOrigin && widget.canUseMyLocation,
         title: isOrigin ? 'Select Origin' : 'Select Destination',
       ),
     );
@@ -143,9 +147,12 @@ class _RoutePickerSheetState extends State<RoutePickerSheet> {
               Expanded(
                 child: _buildLocationTile(
                   label: 'From',
-                  value: _origin?.name ?? 'My Location',
+                  value: _origin?.name ?? 
+                      (widget.canUseMyLocation ? 'My Location' : 'Select origin building'),
                   icon: _origin == null ? Icons.my_location : Icons.location_city,
-                  iconColor: const Color(0xFF4CAF50),
+                  iconColor: widget.canUseMyLocation || _origin != null 
+                      ? const Color(0xFF4CAF50) 
+                      : Colors.grey,
                   onTap: () => _pickBuilding(isOrigin: true),
                 ),
               ),
@@ -218,7 +225,7 @@ class _RoutePickerSheetState extends State<RoutePickerSheet> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: _destination != null
+              onPressed: _destination != null && (_origin != null || widget.canUseMyLocation)
                   ? () {
                       Navigator.of(context).pop(
                         RouteRequest(origin: _origin, destination: _destination!),
