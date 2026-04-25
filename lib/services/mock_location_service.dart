@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -119,14 +118,10 @@ class MockLocationService extends ChangeNotifier {
 
   /// Move the mock position by [dx] meters (east/west) and [dy] meters (north/south).
   /// Positive dx = east, positive dy = north.
-  /// The tick interval controls actual speed; this just applies the displacement.
+  /// Heading is NOT updated here — it is controlled exclusively by [setHeading]
+  /// so that reversing (negative dx/dy) does not flip the facing direction.
   void moveBy(double dx, double dy) {
     if (!_enabled) return;
-
-    // Update heading based on movement direction
-    if (dx.abs() > 0.001 || dy.abs() > 0.001) {
-      _heading = (atan2(dx, dy) * 180 / pi) % 360;
-    }
 
     final newLat = _mockPosition.latitude + (dy / _metersPerDegreeLat);
     final newLng = _mockPosition.longitude + (dx / _metersPerDegreeLng);

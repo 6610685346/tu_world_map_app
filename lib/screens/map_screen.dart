@@ -99,11 +99,15 @@ class _MapScreenState extends State<MapScreen> {
   static const double _offRouteThresholdMeters = 25.0;
   static const double _movedThresholdMeters = 10.0;
   static const Duration _rerouteCooldown = Duration(seconds: 3);
-  bool _userInsideCampus =
-      false; // whether real GPS is inside university bounds
+  /// True after the user declined Mock GPS when prompted. Hides location
+  /// features until they manually enable Mock GPS from the overflow menu.
+  bool _locationDisabled = false;
+  /// Prevents showing the outside-campus dialog more than once at a time.
+  bool _outsideCampusPromptActive = false;
   String? _styleJson;
 
   StreamSubscription<Position>? _positionStream;
+  StreamSubscription<ServiceStatus>? _serviceStatusSub;
   final MockLocationService _mockService = MockLocationService();
 
   /// IMU fusion layer (Phase 1: step-based PDR + gyro heading).
@@ -134,6 +138,7 @@ class _MapScreenState extends State<MapScreen> {
 
     _loadStyleJson();
     _loadBuildings();
+    _startServiceStatusWatch();
     _getCurrentLocation();
 
     _selectionService.addListener(_onBuildingSelected);
@@ -151,6 +156,7 @@ class _MapScreenState extends State<MapScreen> {
     _mockService.removeListener(_onMockLocationChanged);
     FavoriteService().removeListener(_syncFavorites);
     _positionStream?.cancel();
+    _serviceStatusSub?.cancel();
     _fusionSub?.cancel();
     _fusion.dispose();
     _joystickTimer?.cancel();
@@ -874,19 +880,113 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   /// =====================
+  /// Location Service Status (runtime on/off)
+  /// =====================
+
+  /// Subscribe once to the platform location-service toggle. Called from
+  /// initState so the watch is active even when GPS fails at startup.
+  void _startServiceStatusWatch() {
+    if (_serviceStatusSub != null) return;
+    _serviceStatusSub =
+        Geolocator.getServiceStatusStream().listen((ServiceStatus status) {
+      if (!mounted) return;
+      if (status == ServiceStatus.disabled) {
+        _onLocationServiceDisabled();
+      } else {
+        _onLocationServiceEnabled();
+      }
+    });
+  }
+
+  /// Device location services were turned OFF while the app was running.
+  Future<void> _onLocationServiceDisabled() async {
+    // Mock GPS keeps working regardless — no action needed.
+    if (_mockService.enabled) return;
+    // Already in disabled state — avoid a duplicate dialog.
+    if (_locationDisabled) return;
+
+    // Tear down the active GPS pipeline.
+    await _positionStream?.cancel();
+    _positionStream = null;
+    await _fusionSub?.cancel();
+    _fusionSub = null;
+    await _fusion.stop();
+
+    _showLocationUnavailableDialog(
+      'Location Services Turned Off',
+      'Location services were turned off on this device. '
+          'Navigation requires GPS.\n\n'
+          'Would you like to enable Mock GPS to explore the map instead?',
+    );
+  }
+
+  /// Device location services were turned back ON while the app was running.
+  Future<void> _onLocationServiceEnabled() async {
+    // User manually enabled mock GPS — don't interrupt their session.
+    if (_mockService.enabled && !_mockService.autoEnabled) return;
+    // Real GPS is already streaming — nothing to do.
+    if (_positionStream != null && !_locationDisabled) return;
+
+    if (!mounted) return;
+
+    // If mock was the automatic fallback, retire it now that real GPS is back.
+    if (_mockService.autoEnabled) {
+      _mockService.disable();
+    }
+
+    setState(() {
+      _locationDisabled = false;
+      _outsideCampusPromptActive = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Location services restored. Reconnecting GPS…'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    await _getCurrentLocation();
+  }
+
+  /// =====================
   /// Location (Real-Time)
   /// =====================
   Future<void> _getCurrentLocation() async {
-    if (!await Geolocator.isLocationServiceEnabled()) return;
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      _showLocationUnavailableDialog(
+        'Location Services Off',
+        'Location services are turned off on this device. '
+            'Navigation requires GPS.\n\n'
+            'Would you like to enable Mock GPS to explore the map instead?',
+      );
+      return;
+    }
 
     LocationPermission permission = await Geolocator.checkPermission();
 
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return;
+      if (permission == LocationPermission.denied) {
+        _showLocationUnavailableDialog(
+          'Location Permission Denied',
+          'Location permission was denied. Navigation requires your GPS '
+              'position.\n\n'
+              'Would you like to enable Mock GPS to explore the map instead?',
+        );
+        return;
+      }
     }
 
-    if (permission == LocationPermission.deniedForever) return;
+    if (permission == LocationPermission.deniedForever) {
+      _showLocationUnavailableDialog(
+        'Location Permission Blocked',
+        'Location permission is permanently blocked. To use real GPS, '
+            'enable it in your device Settings.\n\n'
+            'Would you like to enable Mock GPS to explore the map instead?',
+      );
+      return;
+    }
 
     const locationSettings = LocationSettings(
       accuracy: LocationAccuracy.bestForNavigation,
@@ -917,26 +1017,29 @@ class _MapScreenState extends State<MapScreen> {
           final newLocation = LatLng(position.latitude, position.longitude);
           final inside = _isInsideCampus(newLocation);
 
-          // Auto-enable mock GPS if user is outside campus
-          if (!inside && !_userInsideCampus && !_mockService.enabled) {
-            _mockService.enable(
-              initialPosition: const LatLng(14.0723, 100.6034), // campus center
-              auto: true,
-            );
-            setState(() {
-              _userInsideCampus = false;
-            });
+          // If user is outside campus and we haven't asked yet, prompt them.
+          if (!inside &&
+              !_mockService.enabled &&
+              !_locationDisabled &&
+              !_outsideCampusPromptActive) {
+            _outsideCampusPromptActive = true;
+            _showOutsideCampusDialog();
             return;
           }
 
-          // If user comes back inside campus, disable auto-mock
-          if (inside && _mockService.autoEnabled) {
-            _mockService.disable();
+          // Re-entry: when real GPS is back inside campus, restore normal state
+          // regardless of whether location was previously disabled.
+          if (inside) {
+            if (_locationDisabled) {
+              setState(() => _locationDisabled = false);
+            }
+            if (_mockService.autoEnabled) {
+              _mockService.disable();
+            }
           }
 
-          setState(() {
-            _userInsideCampus = inside;
-          });
+          // Skip all location processing while the user has disabled GPS.
+          if (_locationDisabled && !_mockService.enabled) return;
 
           if (_travelMode == TravelMode.walk) {
             // Feed GPS into PDR; the fusion stream callback above will
@@ -1260,6 +1363,125 @@ class _MapScreenState extends State<MapScreen> {
     _recenterOnUser();
   }
 
+  /// Show a dialog when location services are off or permission was denied.
+  /// Shared by all startup GPS-unavailable cases; [title] and [body] vary.
+  Future<void> _showLocationUnavailableDialog(String title, String body) async {
+    if (!mounted) return;
+    final enableMock = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: AppColors.cream,
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.darkBrown,
+          ),
+        ),
+        content: Text(body, style: const TextStyle(color: AppColors.brown)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('No', style: TextStyle(color: AppColors.brown)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryRed,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Enable Mock GPS',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+    if (enableMock == true) {
+      _mockService.enable(
+        initialPosition: const LatLng(14.0723, 100.6034),
+        auto: true,
+      );
+    } else {
+      setState(() => _locationDisabled = true);
+    }
+  }
+
+  /// Show a one-time dialog when real GPS detects the user is outside campus.
+  /// Yes → enable Mock GPS (auto mode). No → disable location features.
+  Future<void> _showOutsideCampusDialog() async {
+    if (!mounted) {
+      _outsideCampusPromptActive = false;
+      return;
+    }
+    final enableMock = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: AppColors.cream,
+        title: const Text(
+          'Outside Campus',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.darkBrown,
+          ),
+        ),
+        content: const Text(
+          "You appear to be outside Thammasat University's campus. "
+          'Navigation is only available on campus.\n\n'
+          'Would you like to enable Mock GPS so you can explore the map?',
+          style: TextStyle(color: AppColors.brown),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text(
+              'No',
+              style: TextStyle(color: AppColors.brown),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryRed,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Enable Mock GPS',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    _outsideCampusPromptActive = false;
+
+    if (!mounted) return;
+
+    if (enableMock == true) {
+      _mockService.enable(
+        initialPosition: const LatLng(14.0723, 100.6034),
+        auto: true,
+      );
+    } else {
+      setState(() => _locationDisabled = true);
+    }
+  }
+
   /// Animate the camera back to the user's current location (if known
   /// and the map is ready). Used when returning to idle from navigation.
   void _recenterOnUser() {
@@ -1385,23 +1607,25 @@ class _MapScreenState extends State<MapScreen> {
       ),
       actions: [
         // Center camera on the user's location.
-        IconButton(
-          icon: const Icon(Icons.my_location, color: AppColors.primaryRed),
-          tooltip: 'My Location',
-          onPressed: () async {
-            if (currentLocation != null && _mapReady) {
-              _mapController.animateCamera(
-                maplibre.CameraUpdate.newLatLngZoom(
-                  maplibre.LatLng(
-                    currentLocation!.latitude,
-                    currentLocation!.longitude,
+        // Hidden when the user has disabled GPS (outside campus, declined mock).
+        if (!_locationDisabled)
+          IconButton(
+            icon: const Icon(Icons.my_location, color: AppColors.primaryRed),
+            tooltip: 'My Location',
+            onPressed: () async {
+              if (currentLocation != null && _mapReady) {
+                _mapController.animateCamera(
+                  maplibre.CameraUpdate.newLatLngZoom(
+                    maplibre.LatLng(
+                      currentLocation!.latitude,
+                      currentLocation!.longitude,
+                    ),
+                    17,
                   ),
-                  17,
-                ),
-              );
-            }
-          },
-        ),
+                );
+              }
+            },
+          ),
         // Power-user / debug actions tucked behind an overflow menu.
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, color: AppColors.primaryRed),
@@ -1416,8 +1640,18 @@ class _MapScreenState extends State<MapScreen> {
                 _openRoutePicker();
                 break;
               case 'mock_gps':
-                _mockService.toggle(initialPosition: currentLocation);
-                setState(() {});
+                if (_mockService.autoEnabled) {
+                  // Disabling while auto-enabled means the user is outside
+                  // campus with no location source — treat as disabled.
+                  _mockService.disable();
+                  setState(() => _locationDisabled = true);
+                } else {
+                  _mockService.toggle(initialPosition: currentLocation);
+                  // Manually re-enabling lifts the location-disabled flag.
+                  setState(() {
+                    if (_mockService.enabled) _locationDisabled = false;
+                  });
+                }
                 break;
             }
           },
@@ -1439,30 +1673,29 @@ class _MapScreenState extends State<MapScreen> {
                 ],
               ),
             ),
-            if (!_mockService.autoEnabled)
-              PopupMenuItem(
-                value: 'mock_gps',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.gamepad,
-                      color: _mockService.enabled ? Colors.green : AppColors.brown,
-                      size: 20,
+            PopupMenuItem(
+              value: 'mock_gps',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.gamepad,
+                    color: _mockService.enabled ? Colors.green : AppColors.brown,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    _mockService.enabled
+                        ? 'Disable Mock GPS'
+                        : 'Enable Mock GPS',
+                    style: const TextStyle(
+                      color: AppColors.darkBrown,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
                     ),
-                    const SizedBox(width: 12),
-                    Text(
-                      _mockService.enabled
-                          ? 'Disable Mock GPS'
-                          : 'Enable Mock GPS',
-                      style: const TextStyle(
-                        color: AppColors.darkBrown,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+            ),
           ],
         ),
       ],
