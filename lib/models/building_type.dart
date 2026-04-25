@@ -9,6 +9,8 @@ enum BuildingType {
   museum,
   other,
   dorm,
+  residential,
+  hospital,
 }
 
 extension BuildingTypeExtension on BuildingType {
