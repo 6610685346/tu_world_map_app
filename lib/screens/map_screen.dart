@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'dart:ui' show ImageFilter;
 import 'package:maplibre_gl/maplibre_gl.dart' as maplibre;
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
@@ -114,6 +115,12 @@ class _MapScreenState extends State<MapScreen> {
   bool _isGpsSuppressed = false;
   /// Prevents showing the outside-campus dialog more than once at a time.
   bool _outsideCampusPromptActive = false;
+  /// Prevents showing the location-unavailable (services off/denied) dialog
+  /// more than once at a time.
+  bool _locationUnavailablePromptActive = false;
+  /// True while the initial (or re-enabled) location check is in progress.
+  /// Shows a "please wait" overlay and locks interaction.
+  bool _isVerifyingLocation = true;
   String? _styleJson;
 
   StreamSubscription<Position>? _positionStream;
@@ -962,6 +969,7 @@ class _MapScreenState extends State<MapScreen> {
     setState(() {
       _locationDisabled = false;
       _outsideCampusPromptActive = false;
+      _isVerifyingLocation = true;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1047,6 +1055,10 @@ class _MapScreenState extends State<MapScreen> {
         ).listen((Position position) async {
           final newLocation = LatLng(position.latitude, position.longitude);
           final inside = _isInsideCampus(newLocation);
+
+          if (_isVerifyingLocation && inside) {
+            setState(() => _isVerifyingLocation = false);
+          }
 
           // Re-entry check runs BEFORE the mock guard so that silent fallback
           // (mock enabled, _locationDisabled true) can recover the moment real
@@ -1480,7 +1492,9 @@ class _MapScreenState extends State<MapScreen> {
   /// Show a dialog when location services are off or permission was denied.
   /// Shared by all startup GPS-unavailable cases; [title] and [body] vary.
   Future<void> _showLocationUnavailableDialog(String title, String body) async {
-    if (!mounted) return;
+    if (!mounted || _locationUnavailablePromptActive) return;
+    _locationUnavailablePromptActive = true;
+
     final enableMock = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -1543,6 +1557,10 @@ class _MapScreenState extends State<MapScreen> {
         auto: true,
       );
     }
+    setState(() {
+      _isVerifyingLocation = false;
+      _locationUnavailablePromptActive = false;
+    });
   }
 
   /// Show a one-time dialog when real GPS detects the user is outside campus.
@@ -1619,6 +1637,7 @@ class _MapScreenState extends State<MapScreen> {
         auto: true,
       );
     }
+    setState(() => _isVerifyingLocation = false);
   }
 
   /// Animate the camera back to the user's current location (if known
@@ -1753,6 +1772,7 @@ class _MapScreenState extends State<MapScreen> {
             icon: const Icon(Icons.explore, color: AppColors.brown),
             tooltip: 'Return to Campus',
             onPressed: () {
+              if (_isVerifyingLocation) return;
               if (_mapReady) {
                 _mapController.animateCamera(
                   maplibre.CameraUpdate.newLatLngZoom(
@@ -1768,6 +1788,7 @@ class _MapScreenState extends State<MapScreen> {
             icon: const Icon(Icons.my_location, color: AppColors.primaryRed),
             tooltip: 'My Location',
             onPressed: () async {
+              if (_isVerifyingLocation) return;
               if (currentLocation != null && _mapReady) {
                 _mapController.animateCamera(
                   maplibre.CameraUpdate.newLatLngZoom(
@@ -1790,6 +1811,7 @@ class _MapScreenState extends State<MapScreen> {
           elevation: 4,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           onSelected: (value) {
+            if (_isVerifyingLocation) return;
             switch (value) {
               case 'plan_route':
                 _openRoutePicker();
@@ -1818,11 +1840,11 @@ class _MapScreenState extends State<MapScreen> {
                     if (_mockService.enabled) {
                       _locationDisabled = false;
                       _isGpsSuppressed = false;
-                    } else if (!_isInsideCampus(LatLng(currentLocation?.latitude ?? 0, currentLocation?.longitude ?? 0))) {
-                      // If we just disabled it and we're outside, set suppression to true
-                      _locationDisabled = true;
-                      _isGpsSuppressed = true;
-                      currentLocation = null;
+                    } else {
+                      // Mock GPS turned off — re-verify real-time location.
+                      _isVerifyingLocation = true;
+                      _locationDisabled = false;
+                      _isGpsSuppressed = false;
                     }
                   });
                 }
@@ -2071,7 +2093,70 @@ class _MapScreenState extends State<MapScreen> {
         if (_navState == _NavState.preview) _buildPreviewPanel(),
         if (_navState == _NavState.navigating) _buildNavigatingBar(),
         if (_navState == _NavState.arrived) _buildArrivedCard(),
+        // Verifying location overlay (locks interaction)
+        if (_isVerifyingLocation) _buildLocationCheckOverlay(),
       ],
+    );
+  }
+
+  /// ---------------------
+  /// Location Check Overlay
+  /// ---------------------
+  Widget _buildLocationCheckOverlay() {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.2),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+          child: Center(
+            child: Card(
+              elevation: 8,
+              shadowColor: Colors.black.withValues(alpha: 0.3),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              color: AppColors.cream,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 24,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: CircularProgressIndicator(
+                        color: AppColors.primaryRed,
+                        strokeWidth: 3,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Verifying Location',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.darkBrown,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Checking campus boundaries...',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.brown.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
