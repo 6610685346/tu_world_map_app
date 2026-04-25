@@ -25,7 +25,7 @@ class _TUWorldMapOnboardingState extends State<TUWorldMapOnboarding> {
 
   final List<_OnboardPage> pages = [
     _OnboardPage(
-      icon: Icons.location_pin,
+      imagePath: 'assets/images/app_logo.png',
       title: "Welcome to TU World Map",
       description:
           "Navigate your campus with ease. Find buildings, facilities, and points of interest all in one place.",
@@ -135,11 +135,18 @@ class _TUWorldMapOnboardingState extends State<TUWorldMapOnboarding> {
                                     ],
                                   ),
                                 ),
-                                child: Icon(
-                                  page.icon,
-                                  size: 80,
-                                  color: const Color(0xFFD32F2F), // Red
-                                ),
+                                child: page.imagePath != null
+                                    ? Image.asset(
+                                        page.imagePath!,
+                                        height: 120,
+                                        width: 120,
+                                        fit: BoxFit.contain,
+                                      )
+                                    : Icon(
+                                        page.icon,
+                                        size: 80,
+                                        color: const Color(0xFFD32F2F), // Red
+                                      ),
                               ),
                               const SizedBox(height: 32),
 
@@ -254,13 +261,15 @@ class _TUWorldMapOnboardingState extends State<TUWorldMapOnboarding> {
 }
 
 class _OnboardPage {
-  final IconData icon;
+  final IconData? icon;
+  final String? imagePath;
   final String title;
   final String description;
   final bool showButton;
 
   _OnboardPage({
-    required this.icon,
+    this.icon,
+    this.imagePath,
     required this.title,
     required this.description,
     this.showButton = false,
