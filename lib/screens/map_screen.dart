@@ -754,7 +754,22 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _updateUserLocationDot() async {
-    if (!_mapReady || currentLocation == null) return;
+    if (!_mapReady) return;
+
+    // Hide the dot when location features are disabled (user declined GPS/Mock).
+    // currentLocation is still set to campus center as a silent fallback, but
+    // we never render it so the user doesn't see a fake blue dot.
+    if (_locationDisabled || currentLocation == null) {
+      try {
+        await _mapController.setGeoJsonSource('app-user-location', {
+          'type': 'FeatureCollection',
+          'features': [],
+        });
+      } catch (e) {
+        _log.warning('Error clearing location dot: $e');
+      }
+      return;
+    }
 
     try {
       final geoJson = {
@@ -953,6 +968,15 @@ class _MapScreenState extends State<MapScreen> {
   /// Location (Real-Time)
   /// =====================
   Future<void> _getCurrentLocation() async {
+    // Cancel any existing pipeline first so restarts don't create duplicate streams.
+    await _positionStream?.cancel();
+    _positionStream = null;
+    if (_fusion.isRunning) {
+      await _fusionSub?.cancel();
+      _fusionSub = null;
+      await _fusion.stop();
+    }
+
     if (!await Geolocator.isLocationServiceEnabled()) {
       _showLocationUnavailableDialog(
         'Location Services Off',
@@ -1011,31 +1035,28 @@ class _MapScreenState extends State<MapScreen> {
         Geolocator.getPositionStream(
           locationSettings: locationSettings,
         ).listen((Position position) async {
-          // Skip real GPS updates when mock mode is active
-          if (_mockService.enabled) return;
-
           final newLocation = LatLng(position.latitude, position.longitude);
           final inside = _isInsideCampus(newLocation);
 
+          // Re-entry check runs BEFORE the mock guard so that silent fallback
+          // (mock enabled, _locationDisabled true) can recover the moment real
+          // GPS sees the user back on campus.
+          if (inside) {
+            if (_locationDisabled) setState(() => _locationDisabled = false);
+            if (_mockService.autoEnabled) _mockService.disable();
+            _outsideCampusPromptActive = false;
+          }
+
+          // Skip real GPS updates when mock mode is still active (manual mode,
+          // or auto-mode where the user is still outside campus). After re-entry
+          // above, auto-mock is already disabled so this only fires for manual mock.
+          if (_mockService.enabled) return;
+
           // If user is outside campus and we haven't asked yet, prompt them.
-          if (!inside &&
-              !_mockService.enabled &&
-              !_locationDisabled &&
-              !_outsideCampusPromptActive) {
+          if (!inside && !_locationDisabled && !_outsideCampusPromptActive) {
             _outsideCampusPromptActive = true;
             _showOutsideCampusDialog();
             return;
-          }
-
-          // Re-entry: when real GPS is back inside campus, restore normal state
-          // regardless of whether location was previously disabled.
-          if (inside) {
-            if (_locationDisabled) {
-              setState(() => _locationDisabled = false);
-            }
-            if (_mockService.autoEnabled) {
-              _mockService.disable();
-            }
           }
 
           // Skip all location processing while the user has disabled GPS.
@@ -1413,7 +1434,14 @@ class _MapScreenState extends State<MapScreen> {
         auto: true,
       );
     } else {
+      // "No" — disable visible location features but keep mock service running
+      // silently at campus center so currentLocation is never null for routing.
+      // _onMockLocationChanged will set currentLocation and clear the dot.
       setState(() => _locationDisabled = true);
+      _mockService.enable(
+        initialPosition: const LatLng(14.0723, 100.6034),
+        auto: true,
+      );
     }
   }
 
@@ -1479,6 +1507,10 @@ class _MapScreenState extends State<MapScreen> {
       );
     } else {
       setState(() => _locationDisabled = true);
+      _mockService.enable(
+        initialPosition: const LatLng(14.0723, 100.6034),
+        auto: true,
+      );
     }
   }
 
@@ -1606,9 +1638,25 @@ class _MapScreenState extends State<MapScreen> {
         ),
       ),
       actions: [
-        // Center camera on the user's location.
-        // Hidden when the user has disabled GPS (outside campus, declined mock).
-        if (!_locationDisabled)
+        // When location is disabled (no GPS/outside campus), show a
+        // "Return to Campus" button that flies the camera to campus center.
+        // Otherwise show the normal "My Location" tracker.
+        if (_locationDisabled)
+          IconButton(
+            icon: const Icon(Icons.explore, color: AppColors.brown),
+            tooltip: 'Return to Campus',
+            onPressed: () {
+              if (_mapReady) {
+                _mapController.animateCamera(
+                  maplibre.CameraUpdate.newLatLngZoom(
+                    const maplibre.LatLng(14.0723, 100.6034),
+                    15,
+                  ),
+                );
+              }
+            },
+          )
+        else
           IconButton(
             icon: const Icon(Icons.my_location, color: AppColors.primaryRed),
             tooltip: 'My Location',
@@ -1640,14 +1688,18 @@ class _MapScreenState extends State<MapScreen> {
                 _openRoutePicker();
                 break;
               case 'mock_gps':
-                if (_mockService.autoEnabled) {
-                  // Disabling while auto-enabled means the user is outside
-                  // campus with no location source — treat as disabled.
-                  _mockService.disable();
+                if (_locationDisabled) {
+                  // Silent fallback → surface as full Mock GPS with controls.
+                  // Re-enable without auto flag to drop the "outside campus" badge.
+                  _mockService.enable(initialPosition: _mockService.mockPosition);
+                  setState(() => _locationDisabled = false);
+                } else if (_mockService.autoEnabled) {
+                  // Auto-mock (outside campus) → switch to silent fallback.
+                  // Keep mock running so currentLocation stays valid; just hide UI.
                   setState(() => _locationDisabled = true);
                 } else {
+                  // Normal manual toggle.
                   _mockService.toggle(initialPosition: currentLocation);
-                  // Manually re-enabling lifts the location-disabled flag.
                   setState(() {
                     if (_mockService.enabled) _locationDisabled = false;
                   });
@@ -1679,12 +1731,14 @@ class _MapScreenState extends State<MapScreen> {
                 children: [
                   Icon(
                     Icons.gamepad,
-                    color: _mockService.enabled ? Colors.green : AppColors.brown,
+                    color: (_mockService.enabled && !_locationDisabled)
+                        ? Colors.green
+                        : AppColors.brown,
                     size: 20,
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    _mockService.enabled
+                    (_mockService.enabled && !_locationDisabled)
                         ? 'Disable Mock GPS'
                         : 'Enable Mock GPS',
                     style: const TextStyle(
@@ -1769,8 +1823,8 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
         ),
-        // Mock GPS indicator badge + speed selector
-        if (_mockService.enabled)
+        // Mock GPS indicator badge + speed selector (hidden in silent fallback)
+        if (_mockService.enabled && !_locationDisabled)
           Positioned(
             top: 8,
             left: 8,
@@ -1888,8 +1942,8 @@ class _MapScreenState extends State<MapScreen> {
               ],
             ),
           ),
-        // Mock controls overlay (only when mock mode is active)
-        if (_mockService.enabled) _buildMockControls(),
+        // Mock controls overlay (hidden in silent fallback)
+        if (_mockService.enabled && !_locationDisabled) _buildMockControls(),
         // Bottom UI: depends on the navigation state.
         if (_navState == _NavState.selected) _buildSelectedCard(),
         if (_navState == _NavState.preview) _buildPreviewPanel(),
