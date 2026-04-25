@@ -45,6 +45,7 @@ dependencies:
   cached_network_image: ^3.4.1
   sensors_plus:
   flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.4
 
 dev_dependencies:
   flutter_test:
@@ -57,6 +58,14 @@ flutter_launcher_icons:
   image_path: "assets/images/app_logo.png"
   min_sdk_android: 21
 
+flutter_native_splash:
+  color: "#FFFBF5"
+  image: "assets/images/app_logo_splash.png"
+  android_12:
+    image: "assets/images/app_logo_splash.png"
+    color: "#FFFBF5"
+  fullscreen: false
+
 flutter:
   uses-material-design: true
   assets:
@@ -64,3 +73,4 @@ flutter:
     - assets/db/buildings_info.db
     - assets/paths.geojson
     - assets/images/app_logo.png
+    - assets/images/app_logo_splash.png
