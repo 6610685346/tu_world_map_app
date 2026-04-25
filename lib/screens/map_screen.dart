@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as maplibre;
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show HapticFeedback, rootBundle;
 import 'package:logging/logging.dart';
 
 import 'package:tu_world_map_app/models/building.dart';
@@ -44,8 +44,11 @@ class AppColors {
 ///             shows distance/ETA/mode chips and a Start button. Camera
 ///             does not track the user yet.
 /// navigating: the user pressed Start. Camera tracks user, snap-to-path
-///             and reroute logic are active.
-enum _NavState { idle, selected, preview, navigating }
+///             and reroute logic are active. Distance/ETA refresh on
+///             every position update.
+/// arrived:    user reached the destination; the navigating bar is
+///             replaced with a success card and the camera flattens.
+enum _NavState { idle, selected, preview, navigating, arrived }
 
 /// =====================
 /// Map Screen
@@ -98,6 +101,10 @@ class _MapScreenState extends State<MapScreen> {
   DateTime? _lastRerouteAt;
   static const double _offRouteThresholdMeters = 25.0;
   static const double _movedThresholdMeters = 10.0;
+  /// Distance from the destination (in meters) at which navigation is
+  /// considered complete. Either direct distance to the destination or the
+  /// remaining route length crossing this threshold triggers arrival.
+  static const double _arrivalThresholdMeters = 15.0;
   static const Duration _rerouteCooldown = Duration(seconds: 3);
   /// True after the user declined Mock GPS when prompted. Hides location
   /// features until they manually enable Mock GPS from the overflow menu.
@@ -1125,12 +1132,64 @@ class _MapScreenState extends State<MapScreen> {
       _heading = _mockService.heading;
     }
 
+    // Live remaining distance / ETA + arrival detection. Both checks run
+    // off the trimmed route — every position update shrinks the remaining
+    // length so the navigating bar refreshes in real time.
+    double? remainingMeters;
+    bool arrived = false;
+    if (_navState == _NavState.navigating && routingDestination != null) {
+      remainingMeters = _routeDistanceMeters(currentRoute);
+      final dToDest = const Distance().as(
+        LengthUnit.Meter,
+        rawLocation,
+        routingDestination!,
+      );
+      if (dToDest <= _arrivalThresholdMeters ||
+          remainingMeters <= _arrivalThresholdMeters) {
+        arrived = true;
+      }
+    }
+
     setState(() {
       currentLocation = displayLocation;
+      if (arrived) {
+        _navState = _NavState.arrived;
+        currentRoute.clear();
+      } else if (remainingMeters != null) {
+        _previewDistanceMeters = remainingMeters;
+        _previewEta = _etaFor(remainingMeters, _travelMode);
+      }
     });
 
     // Update the blue dot on the map
     _updateUserLocationDot();
+
+    // Arrival: clear the line, give a haptic nudge, flatten the camera,
+    // and skip both nav-mode camera rotation and reroute checks below.
+    if (arrived) {
+      _updateRouteLayer();
+      HapticFeedback.heavyImpact();
+      if (_mapReady) {
+        try {
+          _mapController.animateCamera(
+            maplibre.CameraUpdate.newCameraPosition(
+              maplibre.CameraPosition(
+                target: maplibre.LatLng(
+                  displayLocation.latitude,
+                  displayLocation.longitude,
+                ),
+                zoom: 18,
+                bearing: 0,
+                tilt: 0,
+              ),
+            ),
+          );
+        } catch (e) {
+          _log.warning('Arrival camera reset failed: $e');
+        }
+      }
+      return;
+    }
 
     // Rotate map to match heading when navigating
     if (_mapReady && _navState == _NavState.navigating) {
@@ -1948,6 +2007,7 @@ class _MapScreenState extends State<MapScreen> {
         if (_navState == _NavState.selected) _buildSelectedCard(),
         if (_navState == _NavState.preview) _buildPreviewPanel(),
         if (_navState == _NavState.navigating) _buildNavigatingBar(),
+        if (_navState == _NavState.arrived) _buildArrivedCard(),
       ],
     );
   }
@@ -2027,6 +2087,70 @@ class _MapScreenState extends State<MapScreen> {
                 icon: const Icon(Icons.close, color: Colors.white),
                 label: const Text(
                   'End',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// ---------------------
+  /// Arrived bar (replaces the navigating bar on destination reached)
+  /// ---------------------
+  Widget _buildArrivedCard() {
+    final building = selectedBuilding;
+    if (building == null) return const SizedBox.shrink();
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    return Positioned(
+      left: 12,
+      right: 12,
+      bottom: 12 + bottomInset,
+      child: Material(
+        elevation: 6,
+        color: Colors.green.shade700,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+          child: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white, size: 28),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      "You've arrived!",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'at ${building.name}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _exitToIdle,
+                icon: const Icon(Icons.check, color: Colors.white),
+                label: const Text(
+                  'Done',
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
