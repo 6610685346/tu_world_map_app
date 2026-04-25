@@ -1874,7 +1874,7 @@ class _MapScreenState extends State<MapScreen> {
                   });
                 } else {
                   // Normal manual toggle.
-                  final wasEnabled = _mockService.enabled;
+                  // final wasEnabled = _mockService.enabled;
                   _mockService.toggle(initialPosition: currentLocation);
                   setState(() {
                     if (_mockService.enabled) {
@@ -1882,9 +1882,12 @@ class _MapScreenState extends State<MapScreen> {
                       _isGpsSuppressed = false;
                     } else {
                       // Mock GPS turned off — re-verify real-time location.
-                      _isVerifyingLocation = true;
-                      _locationDisabled = false;
-                      _isGpsSuppressed = false;
+                      setState(() {
+                        _isVerifyingLocation = true;
+                        _locationDisabled = false;
+                        _isGpsSuppressed = false;
+                      });
+                      _getCurrentLocation();
                     }
                   });
                 }
