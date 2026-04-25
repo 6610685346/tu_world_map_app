@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 /// Standalone smoke test for the GeoJSON-driven pathfinding pipeline.
 ///
 /// Runs outside Flutter so it doesn't depend on rootBundle — reads the
@@ -38,14 +40,18 @@ void main() {
       }
     }
   }
-  print('Edges: walk=$walkE  bike=$bikeE  road=$roadE  (directed, incl. reverses)');
+  print(
+    'Edges: walk=$walkE  bike=$bikeE  road=$roadE  (directed, incl. reverses)',
+  );
   print('Parse+build time: ${sw.elapsedMilliseconds} ms');
 
   // Connected-components over the *undirected* union (any edge connects).
   final cc = _components(nodes);
   cc.sort((a, b) => b.compareTo(a));
-  print('Connected components (by node count): '
-      'largest=${cc.first}  top5=${cc.take(5).toList()}  total=${cc.length}');
+  print(
+    'Connected components (by node count): '
+    'largest=${cc.first}  top5=${cc.take(5).toList()}  total=${cc.length}',
+  );
 
   // Pick two real points on TU Rangsit — main gate-ish and dome area.
   final start = LatLng(14.0683, 100.6034);
@@ -62,9 +68,15 @@ void main() {
       continue;
     }
     final meters = _routeLength(route);
-    print('Route: ${route.length} points, ${meters.toStringAsFixed(0)}m, ${t.elapsedMilliseconds} ms');
-    print('  first: ${route.first.latitude.toStringAsFixed(5)}, ${route.first.longitude.toStringAsFixed(5)}');
-    print('  last:  ${route.last.latitude.toStringAsFixed(5)}, ${route.last.longitude.toStringAsFixed(5)}');
+    print(
+      'Route: ${route.length} points, ${meters.toStringAsFixed(0)}m, ${t.elapsedMilliseconds} ms',
+    );
+    print(
+      '  first: ${route.first.latitude.toStringAsFixed(5)}, ${route.first.longitude.toStringAsFixed(5)}',
+    );
+    print(
+      '  last:  ${route.last.latitude.toStringAsFixed(5)}, ${route.last.longitude.toStringAsFixed(5)}',
+    );
   }
 }
 
@@ -105,7 +117,11 @@ Map<String, PathNode> _parseAndBuild(String raw) {
 
   return {
     for (final e in tmp.entries)
-      e.key: PathNode(id: e.key, position: e.value.position, edges: e.value.edges),
+      e.key: PathNode(
+        id: e.key,
+        position: e.value.position,
+        edges: e.value.edges,
+      ),
   };
 }
 
@@ -175,10 +191,11 @@ List<LatLng> _aStar(
   PathNode e,
   TravelMode mode,
 ) {
-
   final gScore = <String, double>{s.id: 0.0};
   final cameFrom = <String, String>{};
-  final open = <_He>[_He(_dist.as(LengthUnit.Meter, s.position, e.position), s.id)];
+  final open = <_He>[
+    _He(_dist.as(LengthUnit.Meter, s.position, e.position), s.id),
+  ];
 
   while (open.isNotEmpty) {
     open.sort((a, b) => a.f.compareTo(b.f));
@@ -204,7 +221,11 @@ List<LatLng> _aStar(
   return const [];
 }
 
-List<LatLng> _recon(Map<String, PathNode> nodes, Map<String, String> from, String endId) {
+List<LatLng> _recon(
+  Map<String, PathNode> nodes,
+  Map<String, String> from,
+  String endId,
+) {
   final out = <LatLng>[];
   String? cur = endId;
   while (cur != null) {
